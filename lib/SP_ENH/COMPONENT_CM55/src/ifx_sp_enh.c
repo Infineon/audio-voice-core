@@ -466,22 +466,35 @@ int32_t ifx_sp_enh_model_parse(int32_t* fn_prms, ifx_stc_sp_enh_info_t* mdl_info
 #ifdef ENABLE_IFX_BF
     if (enable_bf)
     {
-        scratch_sz = (
-            ALIGN_WORD(mdl_infoPt->kfft_size * sizeof(float)) +             // 1 float temporary buffer
-            2 * ALIGN_WORD(mdl_infoPt->kfft_size * sizeof(complex_float))   // 2 complex float temporary buffers
-            );
-        if (scratch_sz > max_scratch_mem_size)
+        #ifdef ENABLE_IFX_DSNS2
+        if(mdl_infoPt->bf_setting.mic_distance_mm > MAX_MIC_DISTANCE_COMBINED_DSNS || num_mics != 2 || !enable_dsns)
+        #endif
         {
-            max_scratch_mem_size = scratch_sz;
+            scratch_sz = (
+                ALIGN_WORD(mdl_infoPt->kfft_size * sizeof(float)) +             // 1 float temporary buffer
+                2 * ALIGN_WORD(mdl_infoPt->kfft_size * sizeof(complex_float))   // 2 complex float temporary buffers
+                );
+            if (scratch_sz > max_scratch_mem_size)
+            {
+                max_scratch_mem_size = scratch_sz;
+            }
+            mdl_infoPt->memory.persistent_mem += ALIGN_WORD(sizeof(component_struct_t)) + ifx_bf_get_coeff_mem_size() + \
+                ifx_bf_get_state_mem_size() + ALIGN_WORD(sizeof(bf_settings_struct_t));
+            mdl_infoPt->bf_pm.persistent_mem_pt = NULL;
+            mdl_infoPt->bf_pm.persistent_mem = ifx_bf_get_cofigurable_coeff_size(num_mics, mdl_infoPt->kfft_size, mdl_infoPt->bf_setting.num_beams) * 4;
+            enable_flag = COMPONENT_SET_FLAG(enable_flag, IFX_SP_ENH_IP_COMPONENT_BF);
+            if (COMPONENT_FLAG_IS_SET(mdl_infoPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_BF)) {
+                num_of_syn++;
+            }
         }
-        mdl_infoPt->memory.persistent_mem += ALIGN_WORD(sizeof(component_struct_t)) + ifx_bf_get_coeff_mem_size() + \
-            ifx_bf_get_state_mem_size() + ALIGN_WORD(sizeof(bf_settings_struct_t));
-        mdl_infoPt->bf_pm.persistent_mem_pt = NULL;
-        mdl_infoPt->bf_pm.persistent_mem = ifx_bf_get_cofigurable_coeff_size(num_mics, mdl_infoPt->kfft_size, mdl_infoPt->bf_setting.num_beams) * 4;
-        enable_flag = COMPONENT_SET_FLAG(enable_flag, IFX_SP_ENH_IP_COMPONENT_BF);
-        if (COMPONENT_FLAG_IS_SET(mdl_infoPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_BF)) {
-            num_of_syn++;
+        #ifdef ENABLE_IFX_DSNS2
+        else
+        {/* Combine two DSNS BF */
+            enable_flag = COMPONENT_SET_FLAG(enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS2);
+            mdl_infoPt->bf_pm.persistent_mem_pt = NULL;
+            mdl_infoPt->bf_pm.persistent_mem = 0;
         }
+        #endif
     }
     else
     {
@@ -585,14 +598,18 @@ int32_t ifx_sp_enh_model_parse(int32_t* fn_prms, ifx_stc_sp_enh_info_t* mdl_info
 #ifdef ENABLE_IFX_DSNS
     if (enable_dsns)
     {
-        int32_t persistent_size;
+        int32_t persistent_size, count=1;
         uint32_t status;
 
+        #ifdef ENABLE_IFX_DSNS2
+        if (COMPONENT_FLAG_IS_SET(enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS2)) count = 2;
+        #endif
 #ifdef USE_MTB_ML
-        mdl_infoPt->dsns_socmem.persistent_mem = ifx_dsns_get_socmem_persistent_mem_size();
+        mdl_infoPt->dsns_socmem.persistent_mem = ifx_dsns_get_socmem_persistent_mem_size() * count;
         mdl_infoPt->dsns_socmem.persistent_mem_pt = NULL;
 #endif
-        status = ifx_dsns_get_persist_mem_size(&persistent_size);
+        status = ifx_dsns_get_persistent_mem_size(&persistent_size);
+        persistent_size *= count;
         if (status != IFX_SP_ENH_SUCCESS)
         {
             return status;
@@ -604,7 +621,7 @@ int32_t ifx_sp_enh_model_parse(int32_t* fn_prms, ifx_stc_sp_enh_info_t* mdl_info
             max_scratch_mem_size = scratch_sz;
         }
 
-        persistent_size += ALIGN_WORD(sizeof(component_struct_t)) + ALIGN_WORD(sizeof(dsns_settings_struct_t)) + ifx_dsns_get_coeff_mem_size();
+        persistent_size += ALIGN_WORD(sizeof(component_struct_t)) + ALIGN_WORD(sizeof(dsns_settings_struct_t)) + ifx_dsns_get_state_mem_size() * count;
         mdl_infoPt->memory.persistent_mem += ALIGN_WORD(persistent_size);
         enable_flag = COMPONENT_SET_FLAG(enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS);
         if (COMPONENT_FLAG_IS_SET(mdl_infoPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_DSNS)) {
@@ -744,7 +761,10 @@ int32_t read_component_coeff(uint8_t* fn_coeffs, int32_t* byte_count, ifx_stc_sp
     else if (componet_id == IFX_SP_ENH_IP_COMPONENT_BF)
     {
 #ifdef ENABLE_IFX_BF
-        ifx_bf_ceff_init(dPt, flt_idx, mdl_infoPt->bf_setting.num_beams);
+        if (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_BF))
+        {
+            ifx_bf_ceff_init(dPt, flt_idx, mdl_infoPt->bf_setting.num_beams);
+        }
 #endif
     }
     else
@@ -798,6 +818,10 @@ int32_t ifx_sp_enh_init(void** dPt_container, ifx_stc_sp_enh_info_t* mdl_infoPt,
 
     // increase number of components up to 3 for input & output meters + GDE if compilation switch is enabled
     dPt->n_components += NUM_PRIV_COMPONENT;
+    if (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS2))
+    {/* decreament one because BF is replaced by DSNS 2 channel BF */
+        dPt->n_components --;
+    }
 
     // save scratch memory pointer and size
     dPt->scratch.scratch_pad = mdl_infoPt->memory.scratch_mem_pt;
@@ -927,12 +951,12 @@ int32_t ifx_sp_enh_init(void** dPt_container, ifx_stc_sp_enh_info_t* mdl_infoPt,
         {
             return IFX_SP_ENH_ERROR(IFX_SP_ENH_IP_COMPONENT_BF, IFX_SP_ENH_ERR_COEFF);
         }
-    }
-    status = init_component_structure_memory(dPt, IFX_SP_ENH_IP_COMPONENT_BF, mdl_infoPt, 1,
-        ifx_bf_get_coeff_mem_size(), ifx_bf_get_state_mem_size(), sizeof(bf_settings_struct_t));
-    if (status != IFX_SP_ENH_SUCCESS)
-    {
-        return status;
+        status = init_component_structure_memory(dPt, IFX_SP_ENH_IP_COMPONENT_BF, mdl_infoPt, 1,
+            ifx_bf_get_coeff_mem_size(), ifx_bf_get_state_mem_size(), sizeof(bf_settings_struct_t));
+        if (status != IFX_SP_ENH_SUCCESS)
+        {
+            return status;
+        }
     }
 #endif
 #ifdef ENABLE_IFX_DRVB
@@ -952,8 +976,14 @@ int32_t ifx_sp_enh_init(void** dPt_container, ifx_stc_sp_enh_info_t* mdl_infoPt,
     }
 #endif
 #ifdef ENABLE_IFX_DSNS
-    status = init_component_structure_memory(dPt, IFX_SP_ENH_IP_COMPONENT_DSNS, mdl_infoPt, 1,
-        ifx_dsns_get_coeff_mem_size(), 0, sizeof(dsns_settings_struct_t));
+    #ifdef ENABLE_IFX_DSNS2
+    if (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS2)) sz = 2;
+    else sz = 1;
+    #else
+    sz = 1;
+    #endif
+    status = init_component_structure_memory(dPt, IFX_SP_ENH_IP_COMPONENT_DSNS, mdl_infoPt, sz,
+        0, ifx_dsns_get_state_mem_size(), sizeof(dsns_settings_struct_t));
     if (status != IFX_SP_ENH_SUCCESS)
     {
         return status;
@@ -1251,7 +1281,7 @@ int32_t ifx_sp_enh_deinit_internal_mem(void* dPt_container)
         {
         case IFX_SP_ENH_IP_COMPONENT_DSNS:
 #ifdef ENABLE_IFX_DSNS
-            status = ifx_dsns_free(lPt);
+            status = ifx_dsns_free(dPt, lPt);
 #endif
             break;
         case IFX_SP_ENH_IP_COMPONENT_DSES:

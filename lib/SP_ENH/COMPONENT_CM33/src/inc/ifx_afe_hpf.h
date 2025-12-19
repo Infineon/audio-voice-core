@@ -1,34 +1,31 @@
 /*
- * Copyright 2025, Cypress Semiconductor Corporation (an Infineon company) or
- * an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
+ * (c) 2025, Infineon Technologies AG, or an affiliate of Infineon
+ * Technologies AG. All rights reserved.
+ * This software, associated documentation and materials ("Software") is
+ * owned by Infineon Technologies AG or one of its affiliates ("Infineon")
+ * and is protected by and subject to worldwide patent protection, worldwide
+ * copyright laws, and international treaty provisions. Therefore, you may use
+ * this Software only as provided in the license agreement accompanying the
+ * software package from which you obtained this Software. If no license
+ * agreement applies, then any use, reproduction, modification, translation, or
+ * compilation of this Software is prohibited without the express written
+ * permission of Infineon.
  *
- * This software, including source code, documentation and related
- * materials ("Software") is owned by Cypress Semiconductor Corporation
- * or one of its affiliates ("Cypress") and is protected by and subject to
- * worldwide patent protection (United States and foreign),
- * United States copyright laws and international treaty provisions.
- * Therefore, you may use this Software only as provided in the license
- * agreement accompanying the software package from which you
- * obtained this Software ("EULA").
- * If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
- * non-transferable license to copy, modify, and compile the Software
- * source code solely for use in connection with Cypress's
- * integrated circuit products.  Any reproduction, modification, translation,
- * compilation, or representation of this Software except as specified
- * above is prohibited without the express written permission of Cypress.
- *
- * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
- * reserves the right to make changes to the Software without notice. Cypress
- * does not assume any liability arising out of the application or use of the
- * Software or any product or circuit described in the Software. Cypress does
- * not authorize its products for use in any products where a malfunction or
- * failure of the Cypress product may reasonably be expected to result in
- * significant property damage, injury or death ("High Risk Product"). By
- * including Cypress's product in a High Risk Product, the manufacturer
- * of such system or application assumes all risk of such use and in doing
- * so agrees to indemnify Cypress against all liability.
+ * Disclaimer: UNLESS OTHERWISE EXPRESSLY AGREED WITH INFINEON, THIS SOFTWARE
+ * IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING, BUT NOT LIMITED TO, ALL WARRANTIES OF NON-INFRINGEMENT OF
+ * THIRD-PARTY RIGHTS AND IMPLIED WARRANTIES SUCH AS WARRANTIES OF FITNESS FOR A
+ * SPECIFIC USE/PURPOSE OR MERCHANTABILITY.
+ * Infineon reserves the right to make changes to the Software without notice.
+ * You are responsible for properly designing, programming, and testing the
+ * functionality and safety of your intended application of the Software, as
+ * well as complying with any legal requirements related to its use. Infineon
+ * does not guarantee that the Software will be free from intrusion, data theft
+ * or loss, or other breaches ("Security Breaches"), and Infineon shall have
+ * no liability arising out of any Security Breaches. Unless otherwise
+ * explicitly approved by Infineon, the Software may not be used in any
+ * application where a failure of the Product or any consequences of the use
+ * thereof can reasonably be expected to result in personal injury.
  */
 
 /** @file
@@ -64,6 +61,16 @@ extern "C" {
 #define HPF_A21_FX_16kHz (-32061)   // = (((int16_t)(-1.956851282961522f*16384))); // Q14
 #define HPF_A22_FX_16kHz (31371)    // = (((int16_t)(0.957394596552974f*32768))); // Q15
 #define HPF_GAIN_FX_16kHz (31774)   // = (((int16_t)(0.969683064082197f*32768))); // Q15
+#define HPF_A11_FX_44_1kHz (-32659)   // = (((int16_t)(-1.993405796331904f*16384))); // Q14
+#define HPF_A12_FX_44_1kHz (32554)    // = (((int16_t)(0.993478635336752f*32768))); // Q15
+#define HPF_A21_FX_44_1kHz (-32510)   // = (((int16_t)(-1.984255795249836f*16384))); // Q14
+#define HPF_A22_FX_44_1kHz (32254)    // = (((int16_t)(0.984328299913841f*32768))); // Q15
+#define HPF_GAIN_FX_44_1kHz (32404)   // = (((int16_t)(0.988892884048494f*32768))); // Q15
+#define HPF_A11_FX_48kHz (-32668)   // = (((int16_t)(-1.993945397248702f*16384))); // Q14
+#define HPF_A12_FX_48kHz (32571)    // = (((int16_t)(0.994006897117715f*32768))); // Q15
+#define HPF_A21_FX_48kHz (-32530)   // = (((int16_t)(-1.985531185289479f*16384))); // Q14
+#define HPF_A22_FX_48kHz (32295)    // = (((int16_t)(0.985592425636373f*32768))); // Q15
+#define HPF_GAIN_FX_48kHz (32433)   // = (((int16_t)(0.989790719712775f*32768))); // Q15
 #else
 // cutoff = 120 Hz
 #define HPF_A11_FX_8kHz (-31488)    // = (((int16_t)(-1.921908893578822f*16384))); // Q14
@@ -76,11 +83,23 @@ extern "C" {
 #define HPF_A21_FX_16kHz (-31366)   // = (((int16_t)(-1.914461090592186f*16384))); // Q14
 #define HPF_A22_FX_16kHz (30034)    // = (((int16_t)(0.916588743744223f*32768))); // Q15
 #define HPF_GAIN_FX_16kHz (30811)   // = (((int16_t)(0.940280536598276f*32768))); // Q15
+#define HPF_A11_FX_44_1kHz (-32550)   // = (((int16_t)(-1.986709728726518*16384))); // Q14
+#define HPF_A12_FX_44_1kHz (32342)    // = (((int16_t)(0.987000132577525*32768))); // Q15
+#define HPF_A21_FX_44_1kHz (-32253)   // = (((int16_t)(-1.968613652455649*16384))); // Q14
+#define HPF_A22_FX_44_1kHz (31748)    // = (((int16_t)(0.968901411144074*32768))); // Q15
+#define HPF_GAIN_FX_44_1kHz (32044)   // = (((int16_t)(0.977908902328715*32768))); // Q15
+#define HPF_A11_FX_48kHz (-32568)   // = (((int16_t)(-1.987804709796042f*16384))); // Q14
+#define HPF_A12_FX_48kHz (32376)    // = (((int16_t)(0.988049970587248f*32768))); // Q15
+#define HPF_A21_FX_48kHz (-32295)   // = (((int16_t)(-1.971148608851041f*16384))); // Q14
+#define HPF_A22_FX_48kHz (31830)    // = (((int16_t)(0.971391814566878f*32768))); // Q15
+#define HPF_GAIN_FX_48kHz (32102)   // = (((int16_t)(0.979685487190403f*32768))); // Q15
 #endif
 
 // Q safety shift for overlow protection during filtering
 #define HPF_QS_8kHz (7)
-#define HPF_QS_16kHz (7)
+#define HPF_QS_16kHz (8)
+#define HPF_QS_44_1kHz (11)
+#define HPF_QS_48kHz (11)
 
 typedef struct 
 {

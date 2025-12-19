@@ -65,8 +65,8 @@ extern "C" {
 *******************************************************************************/
 #define IFX_SP_ENH_VERSION_MAJOR            1
 #define IFX_SP_ENH_VERSION_MINOR            9
-#define IFX_SP_ENH_VERSION_PATCH            6
-#define IFX_SP_ENH_VERSION                  196
+#define IFX_SP_ENH_VERSION_PATCH            9
+#define IFX_SP_ENH_VERSION                  199
 
 #define OVERLAP_SIZE (BLOCK_SIZE - HP_SP_ENH_FRAME_SAMPLES)
 #define NUM_SHIFTS (2)                          // number of bit shifts
@@ -77,6 +77,8 @@ extern "C" {
 #define EXTRA_ANALYSIS (3)
 
 #define BULK_DELAY_COMP_ADJUST_MSEC (2)    // bulk delay compensation adjustment amount to keep AEC operational in case delay is over-estimated
+
+#define MAX_MIC_DISTANCE_COMBINED_DSNS    (30) // max mic distance (mm) to allow combined two channel DSNS
 
 /*******************************************************************************
 * extern variables
@@ -188,13 +190,13 @@ typedef struct sp_enh_struct_t
 /*******************************************************************************
 * Function prototypes of all IP components
 ******************************************************************************/
-uint32_t ifx_dsns_reset(component_struct_t* lPt);
+uint32_t ifx_dsns_reset(sp_enh_struct* dPt, component_struct_t* lPt);
 int32_t ifx_dsns_init(sp_enh_struct* dPt, component_struct_t* lPt, persistent_mem_info_t socmem);
-uint32_t ifx_dsns_free(component_struct_t* lPt);
-int32_t ifx_dsns_process(complex_float* subband_frame, component_struct_t* lPt, ifx_scratch_mem_t* scratch_ptr, int32_t target_attn_gain_dB, bool pp_flag);
-uint32_t ifx_dsns_get_persist_mem_size(int32_t* persist_mem_size);
+uint32_t ifx_dsns_free(sp_enh_struct *dPt, component_struct_t* lPt);
+int32_t ifx_dsns_process(complex_float* subband_frame, complex_float* subband_frame1, sp_enh_struct* dPt, component_struct_t* lPt, int32_t target_attn_gain_dB, bool pp_flag);
+uint32_t ifx_dsns_get_persistent_mem_size(int32_t* persist_mem_size);
 uint32_t ifx_dsns_get_scratch_mem_size();
-int32_t ifx_dsns_get_coeff_mem_size();
+int32_t ifx_dsns_get_state_mem_size();
 uint32_t ifx_dsns_get_socmem_persistent_mem_size();
 int32_t combined_post_process(complex_float* out_pt, float* dsns_gain_mask, float* dses_gain_mask, int32_t size, int32_t target_attn_gain_dB, int32_t max_attn_gain_dB);
 

@@ -124,7 +124,7 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
 #ifdef ENABLE_IFX_VA_CMD
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_DFCMD)
     {
-        if (frame_size != 160 || sz != 1)
+        if (frame_size != 160 || sz != 2)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -137,7 +137,7 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
 #ifdef ENABLE_IFX_PRE_PROCESS_HPF
     if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_HPF)
     {
-        if (frame_size != 160 || sz != 0)
+        if (frame_size <= 0 || sz != 0)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -150,7 +150,7 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
 #ifdef ENABLE_IFX_PRE_PROCESS_ASRC_LPF
     if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_ASRC_LPF)
     {
-        if (frame_size != 160 || sz != 0)
+        if (frame_size <= 0 || sz != 0)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -223,12 +223,25 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
     }
     else
 #endif
+#ifdef ENABLE_IFX_AGC
+    if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+    {
+        if ((sampling_rate != 16000) || (frame_size <= 0))
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+
+        persistent_sz = ALIGN_WORD(sizeof(postprocess_agc_top_struct)) + agc_calculate_persistent_mem_size();
+        scratch_sz = ALIGN_WORD(agc_calculate_scratch_mem_size());
+    }
+    else
+#endif
     {
         return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
     }
 
 #if defined (ENABLE_IFX_PRE_PROCESS_HPF) || defined (ENABLE_IFX_PRE_PROCESS_ASRC_LPF) || defined (ENABLE_IFX_SOD) || \
-    defined(ENABLE_IFX_LPWWD) || defined(ENABLE_IFX_VA_WWD) || defined(ENABLE_IFX_VA_CMD) || defined(ENABLE_IFX_FE)
+    defined(ENABLE_IFX_LPWWD) || defined(ENABLE_IFX_VA_WWD) || defined(ENABLE_IFX_VA_CMD) || defined(ENABLE_IFX_FE) || defined(ENABLE_IFX_AGC)
     memset(mem_infoPt, 0, sizeof(*mem_infoPt));
     mem_infoPt->scratch_mem = scratch_sz;
     mem_infoPt->persistent_mem = persistent_sz;

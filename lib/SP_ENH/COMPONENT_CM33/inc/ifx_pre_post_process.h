@@ -76,8 +76,16 @@ typedef enum
     IFX_POST_PROCESS_IP_COMPONENT_DFWWD,
     IFX_POST_PROCESS_IP_COMPONENT_HMMS,
     IFX_POST_PROCESS_IP_COMPONENT_DFCMD,
+    IFX_POST_PROCESS_IP_COMPONENT_AGC,
     IFX_POST_PROCESS_IP_COMPONENT_MAX_COUNT
 } ifx_pre_post_ip_component_config_t;
+
+typedef enum agc_mode_t {
+    SPEECH_MODE, MUSIC_MODE
+}agc_mode;
+
+#define AGC_MAX_TARGET_LEVEL_DB  10
+#define AGC_MIN_TARGET_LEVEL_DB  -30
 
 /**
  * Shared control/model structure
@@ -180,6 +188,39 @@ int32_t ifx_pre_post_process_init(int32_t * prms_buffer, void **container, ifx_s
  *                                    bit 8 to 15 in the combined 32bit return value.
 */
 int32_t ifx_time_pre_process(IFX_SP_DATA_TYPE_T *input1, IFX_SP_DATA_TYPE_T* input2, void *preprocess_container, int32_t component_id, IFX_SP_DATA_TYPE_T *output1, IFX_SP_DATA_TYPE_T* output2);
+
+/**
+ * \brief : ifx_agc_set_target_level_and_mode() is the API function to set AGC Target level in db and AGC mode by user.
+ *
+ *
+ * \param[in/out]  agc_container    : Pointer to AGC container that contains state memory and parameters
+ * \param[in] agcTargetLevelDB      : AGC Target level in dB
+ * \param[in] agcMode               : AGC mode defined by enumerations of agc_mode
+ * \return                          : Return 0 when success, otherwise return error code
+ *                                    INVALID_ARGUMENT if input or output argument is invalid
+ *                                    or error code from specific infineon preprocess component.
+ *                                    Please note error code is 8bit LSB, line number where the error happened in
+ *                                    code is in 16bit MSB, and its IP component index if applicable will be at
+ *                                    bit 8 to 15 in the combined 32bit return value.
+*/
+uint32_t ifx_agc_set_target_level_and_mode(void* agcTopPt, float agcTargetLevelDB, int agcMode);
+
+/**
+ * \brief : ifx_time_post_process() is the API function to post process in time domain given user's selected method.
+ *
+ *
+ * \param[in]  postprocess_container: Pointer to postprocess container that contains state memory and parameters
+ * \param[in]  component_id         : Infineon post process component ID (current only support IFX_POST_PROCESS_IP_COMPONENT_AGC)
+ * \param[in]  input                : Pointer to input buffer
+ * \param[out] output               : pointer to buffer where postprocessed time domain output of one frame
+ * \return                          : Return 0 when success, otherwise return error code
+ *                                    INVALID_ARGUMENT if input or output argument is invalid
+ *                                    or error code from specific infineon preprocess component.
+ *                                    Please note error code is 8bit LSB, line number where the error happened in
+ *                                    code is in 16bit MSB, and its IP component index if applicable will be at
+ *                                    bit 8 to 15 in the combined 32bit return value.
+*/
+int32_t ifx_time_post_process(IFX_SP_DATA_TYPE_T* input, void* postprocess_container, int32_t component_id, IFX_SP_DATA_TYPE_T* output);
 
 /**
  * \brief : ifx_sod_process() is the API function to do SOD process.
@@ -469,12 +510,13 @@ uint32_t ifx_wwd(void* StrucPt, float* input, int32_t* decision);
  * \param[in]   mem_infoPt       : Pointer to mem_info_t data structure contains dfcmd persistent and scratch memry infomation
  * \param[in]   gap              : dfcmd tunable parameter to set maximum time in milisecond allowed between the end of the WW
  *                                 and the beginning of the commands
+ * \param[in]   adj_level        : dfcmd tunable parameter to decrease or increase maximum CMD duration until timeout 
  * \return                       : Return 0 when success, otherwise return error code from specific ifx itsi proces module.
  *                                 Please note error code is 8bit LSB, line number where the error happened in
  *                                 code is in 16bit MSB, and its IP component index if applicable will be at
  *                                 bit 8 to 15 in the combined 32bit return value.
 */
-uint32_t itsi_dfcmd_init(const char* dfcmdModelPrmPt, const char* dfnmbModelPrmPt, void** container, mem_info_t* mem_infoPt, uint32_t gap);
+uint32_t itsi_dfcmd_init(const char* dfcmdModelPrmPt, const char* dfnmbModelPrmPt, void** container, mem_info_t* mem_infoPt, uint32_t gap, int32_t adj_level);
 
 /**
  * \brief : ifx_dfcmd_state_reset() is the API function to reset the entire state of data free command detection process.

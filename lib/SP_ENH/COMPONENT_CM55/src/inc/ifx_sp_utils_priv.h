@@ -60,8 +60,8 @@ extern "C" {
 *******************************************************************************/
 #define IFX_SP_LPWWD_VERSION_MAJOR            2
 #define IFX_SP_LPWWD_VERSION_MINOR            7
-#define IFX_SP_LPWWD_VERSION_PATCH            0
-#define IFX_SP_LPWWD_VERSION                  270
+#define IFX_SP_LPWWD_VERSION_PATCH            2
+#define IFX_SP_LPWWD_VERSION                  272
 
 /*******************************************************************************
 * Speech utilities data type & defines
@@ -69,6 +69,7 @@ extern "C" {
 #define MAX_FBANK_SIZE  (40)            /* Maximum # of mel_banks; should be between (10-40), typical number: 40 */
 #define MIN_FBANK_SIZE  (2)             /* Minimum # of mel_banks */
 
+#define AGC_PARMS_SIZE  (7)             /* Number of AGC parameters */
 
 /*******************************************************************************
 * Structures and enumerations
@@ -92,7 +93,7 @@ typedef struct sod_top_struct_t
     component_top_struct sod_component; /**<: Infineon SOD component structure */
     int16_t gapsetting;                 /**<: Minimum non-speech time before onset (0,100,200,300,400,500,1000) milliseconds, 400 = nominal */
     int16_t senslevel;                  /**<: Detection sensitivity (0- 32767) 0 = least sensitive, 32767 = most sensitive, 16384 = nominal */
-    bool enable_flag;                   /**<: 1: detect SOD (i.e. normal operation); 0: don’t detect, just update statistics */
+    bool enable_flag;                   /**<: 1: detect SOD (i.e. normal operation); 0: don't detect, just update statistics */
     /*@}*/
 } sod_top_struct;
 
@@ -169,7 +170,21 @@ typedef struct itsi_dfcmd_top_struct_t
     float maxwwgap;             /**<: Maximum time in second allowed between the end of the WW and the beginning of the commands.
                                       If the start of a command has not yet been detected, the detection will time out. */
                                       /*@}*/
+    float adj_factor;           /**<: Factor to decrease or increase maximum CMD duration until timeout. */
+                                      /*@}*/
 } itsi_dfcmd_top_struct;
+
+typedef struct postprocess_agc_top_struct
+{
+    /*@{*/
+    component_top_struct ifx_agc;            /**<: Infineon internal pre processing AGC structure */
+    uint32_t sample_rate;                    /**<: Sampling frequncey in Hz */
+    uint32_t frame_size;                     /**<: frame_size in samples (PCM samples) */
+    uint32_t agc_mode;                       /**<: audio source type: 0: speech mode, 1: music mode */
+    float agc_peak_db;                       /**<: User defined desired agc output peak db */
+    bool enable_flag;                        /**<: 1: enable AGC; 0: disable AGC (i.e. bypass) */
+    /*@{*/
+} postprocess_agc_top_struct;
 
 /**
  * void initSOD(void *SODmemPt, int16_t onsetgap, int16_t sensitivity)
@@ -549,6 +564,46 @@ uint32_t dfcmd_calculate_persistent_mem_size(void);
 *
 ****************************************************************************************/
 uint32_t dfcmd_calculate_scratch_mem_size(void);
+
+/***************************************************************************************
+* Function: agc_calculate_scratch_mem_size(void)
+*
+* Purpose:  This function calculate scratch memory size needed for post process AGC
+*
+****************************************************************************************/
+uint32_t agc_calculate_scratch_mem_size(void);
+
+/***************************************************************************************
+* Function: agc_calculate_persistent_mem_size(void)
+*
+* Purpose:  This function calculate persistent memory size needed for post process AGC
+*
+****************************************************************************************/
+uint32_t agc_calculate_persistent_mem_size(void);
+
+/***************************************************************************************
+* Function: ifx_agc_init(void* agc_container, int16_t *agcParms)
+*
+* Purpose:  This function initialize post process AGC
+*
+****************************************************************************************/
+uint32_t ifx_agc_init(void* agc_container, int16_t *agcParms);
+
+/***************************************************************************************
+* Function: ifx_agc_reset(void* agc_container)
+*
+* Purpose:  This function reset state in post process AGC
+*
+****************************************************************************************/
+uint32_t ifx_agc_reset(void* agc_container);
+
+/***************************************************************************************
+* Function: ifx_agc(void* agc_container, int16_t* inbuf, int16_t* outbuf)
+*
+* Purpose:  This is post process AGC function
+*
+****************************************************************************************/
+uint32_t ifx_agc(void* agc_container, int16_t* inbuf, int16_t* outbuf);
 
 /***************************************************************************************
 * Function: speech_utils_itsi_get_parm(void* container, int32_t ip_id, float* parm)

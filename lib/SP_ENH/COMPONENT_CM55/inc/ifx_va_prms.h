@@ -41,6 +41,7 @@
 *******************************************************************************/
 #ifndef __IFX_VA_PRMS_H
 #define __IFX_VA_PRMS_H
+#include <stdint.h>
 
 #ifndef MAX
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
@@ -76,5 +77,33 @@
 #define AM_LOOKBACK ((int)(SOD_LOOKBACK/ FRAMES_HOP))
 
 #define AM_OUT_SZ_FOR_BUFFER (256)
+
+#define DEFAULT_SOD_GAP_SETTING_MS (400)
+#define DEFAULT_SOD_SENSITIVITY (16384)
+
+#define DEFAULT_SOD_WW_NOACTIVITY_TIMEOUT_MS (500)
+#define SOD_WW_MIN_NOACTIVITY_TIMEOUT_MS (300)
+#define SOD_WW_MAX_NOACTIVITY_TIMEOUT_MS (1000)
+
+#define DEFAULT_WW_CMD_MAXWWGAP_MS (1500)
+#define WW_CMD_MIN_MAXWWGAP_MS (1000)
+#define WW_CMD_MAX_MAXWWGAP_MS (2000)
+
+#define DEFAULT_CMD_TIMEOUT_ADJ_LEVEL (0)
+#define CMD_TIMEOUT_MIN_LEVEL (-32768)
+#define CMD_TIMEOUT_MAX_LEVEL (32767)
+#define CMD_TIMEOUT_MAX_MAG (32768)
+
+#define DFSOD_PARM1_INDEX 5  // gap setting
+#define DFSOD_PARM2_INDEX 6  // sensitivity
+#define DFWW_PARM_INDEX 5    // noactivty_timeout
+#define DFCMD_PARM1_INDEX 5   // maxwwgap
+#define DFCMD_PARM2_INDEX 6   // adj_level
+
+extern int32_t sod_prms[];
+extern int32_t pre_proc_hpf_prms[];
+extern int32_t denoise_prms[];
+extern int32_t dfww_prms[];
+extern int32_t dfcmd_prms[];
 
 #endif /* __IFX_VA_PRMS_H */

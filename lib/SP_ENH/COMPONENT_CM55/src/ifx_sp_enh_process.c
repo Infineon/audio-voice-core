@@ -57,6 +57,11 @@
 #endif
 
 /******************************************************************************
+* Golobal Variables
+*****************************************************************************/
+bool gde_reset_flag = false; // flag to reset GDE
+
+/******************************************************************************
 * Constants and Marco
 *****************************************************************************/
 
@@ -143,17 +148,24 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
             {
                 return IFX_SP_ENH_ERROR(IFX_SP_ENH_IP_COMPONENT_DSES, IFX_SP_ENH_ERR_SCRATCH_MEM_NULL);
             }
-            // store latest farend and mic audio frames
-            int bytes = dPt->frame_size * sizeof(int16_t);
-            memcpy(dPt->aec_farend_pt, ref_pt, bytes);
-            memcpy(dPt->main_mic_pt, in1_pt, bytes);
+            if (ref_pt == NULL || !COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_AEC))
+            {/* DSES should not be active because AEC is not active */
+                dsns_gain_mask = NULL;
+            }
+            if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSES) &&
+                COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_AEC) && (ref_pt != NULL))
+            {// store latest farend and mic audio frames
+                int bytes = dPt->frame_size * sizeof(int16_t);
+                memcpy(dPt->aec_farend_pt, ref_pt, bytes);
+                memcpy(dPt->main_mic_pt, in1_pt, bytes);
 
-            if (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS))
-            {/* This is only needed for DSNS + DSES processed in parallel and then do post processing */
-                dsns_gain_mask = dPt->dsns_gain_mask;
-                if (dsns_gain_mask == NULL)
-                {
-                    return IFX_SP_ENH_ERROR(IFX_SP_ENH_IP_COMPONENT_DSES, IFX_SP_ENH_ERR_SCRATCH_MEM_NULL);
+                if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSNS))
+                {/* This is only needed for DSNS + DSES processed in parallel and then do post processing */
+                    dsns_gain_mask = dPt->dsns_gain_mask;
+                    if (dsns_gain_mask == NULL)
+                    {
+                        return IFX_SP_ENH_ERROR(IFX_SP_ENH_IP_COMPONENT_DSES, IFX_SP_ENH_ERR_SCRATCH_MEM_NULL);
+                    }
                 }
             }
         }
@@ -316,24 +328,19 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                         int32_t bulk_delay_msec = ((aec_settings_struct_t*)lPt->settings_struct)->bulk_delay_msec;
                         bulk_delay_msec = MAX(bulk_delay_msec - BULK_DELAY_COMP_ADJUST_MSEC, 0);
                         int32_t bulk_delay = convert_ms_to_samples(dPt->sampling_rate, bulk_delay_msec);
-#if 1
                         delay_compensation(&dPt->farend_delay_buffer_struct, ref_pt, dPt->frame_size, bulk_delay);
-#else
-                        write_to_delay_buffer(&dPt->farend_delay_buffer_struct, ref_pt, dPt->frame_size);
-                        read_from_delay_buffer(&dPt->farend_delay_buffer_struct, ref_pt, dPt->frame_size, bulk_delay);
-#endif
                         status |= ifx_aec_process(in1_pt, ref_pt, dPt->frame_size, lPt->state_struct[0]); /* Output overwrite input */
 #ifdef ENABLE_IFX_DSES
-                    if (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_DSES))
-                    {/* DSES requires AEC output reference signal */
-                        status |= ifx_aec_get_echo_reference(dPt->dses_ref_pt, lPt->state_struct[0]);
-                        if (COMPONENT_FLAG_IS_SET(dPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_DSES))
-                        {
-                            int bytes = dPt->frame_size * sizeof(int16_t);
-                            memcpy(ifx_out, dPt->dses_ref_pt, bytes);
-                            ifx_out += bytes;
+                        if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSES))
+                        {/* DSES requires AEC output reference signal */
+                            status |= ifx_aec_get_echo_reference(dPt->dses_ref_pt, lPt->state_struct[0]);
+                            if (COMPONENT_FLAG_IS_SET(dPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_DSES))
+                            {
+                                int bytes = dPt->frame_size * sizeof(int16_t);
+                                memcpy(ifx_out, dPt->dses_ref_pt, bytes);
+                                ifx_out += bytes;
+                            }
                         }
-                    }
 #endif
                     }
                     if (COMPONENT_FLAG_IS_SET(dPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_AEC))
@@ -370,7 +377,16 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
 #ifdef ENABLE_IFX_PRIV_GDE
             case IFX_SP_ENH_IP_PRIV_COMPONENT_GDE:
             {// estimate group delay
-                if (dPt->aec_farend_pt != NULL) {
+                if (ref_pt == NULL)
+                {
+                    gde_reset_flag = true; /* Set reset GDE flag */
+                }
+                else if (dPt->aec_farend_pt != NULL) {
+                    if (gde_reset_flag)
+                    {
+                        status = ifx_dses_gde_init(lPt, &dPt->scratch, true); /* Reset GDE*/
+                        gde_reset_flag = false;
+                    }
                     // here we reuse dPt->farend_delay_buffer_struct for group delay compensation
                     // for NLP assuming that it has been updated with latest audio frame during AEC
                     status |= ifx_dses_gde_process(lPt, dPt->aec_farend_pt, dPt->main_mic_pt, &delay);
@@ -419,8 +435,16 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                         memcpy(subband_out_pt, analysis_out1_pt, subband_byte_size);
                     }
                     if (dPt->num_mics == 2 && input2 &&
+                        #ifdef ENABLE_IFX_DSNS2
+                        ((COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_BF) &&
+                        COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_BF))
+                        || (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_DSNS2) &&
+                        COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSNS2))
+                        ))
+                        #else
                         COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_BF) &&
                         COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_BF))
+                        #endif
                     {
                         // process second mic input only if BF is instantiated and activated
                         if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_ANALYSIS))
@@ -439,7 +463,8 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                         analysis_out2_pt = NULL;
                     }
 #ifdef ENABLE_IFX_DSES
-                    if (COMPONENT_FLAG_IS_SET(dPt->enable_flag, IFX_SP_ENH_IP_COMPONENT_DSES))
+                    if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSES) &&
+                        COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_AEC) && (ref_pt != NULL))
                     {/* DSES requires analysis of AEC reference signal */
 #ifndef ENABLE_IFX_PRIV_GDE
                         {
@@ -549,7 +574,8 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                             ifx_es_reset(lPt, dPt->frame_size, dPt->sampling_rate);
                             dPt->reset_flag = COMPONENT_CLEAR_FLAG(dPt->reset_flag, IFX_SP_ENH_IP_COMPONENT_ES);
                         }
-                        if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_ES))
+                        if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_ES) &&
+                            COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_AEC) && (ref_pt != NULL))
                         {
                             int32_t aggressiveness = ((es_settings_struct_t*)lPt->settings_struct)->aggressiveness;
                             ifx_es_set_gain(lPt->state_struct[0], aggressiveness);
@@ -586,15 +612,14 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                             ifx_dses_reset(lPt);
                             dPt->reset_flag = COMPONENT_CLEAR_FLAG(dPt->reset_flag, IFX_SP_ENH_IP_COMPONENT_DSES);
                         }
-                        if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSES))
+                        if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSES) &&
+                            COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_AEC) && (ref_pt != NULL))
                         {
-#ifndef DISABLE_IFX_DSES_DSNS_PARALLEL
                             if (dsns_gain_mask)
                             {/* Both DSES & DSNS active and run paralell */
                                 status |= ifx_dses_process(subband_out_pt, dPt, lPt, dsns_gain_mask, true); /* Output overwrite subband_out_pt */
                             }
                             else
-#endif
                             {
                                 status |= ifx_dses_process(subband_out_pt, dPt, lPt, NULL, false); /* Output overwrite subband_out_pt */
                             }
@@ -608,7 +633,7 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                     }
                 }
 #else
-                return IFX_SP_ENH_ERROR(IFX_SP_ENH_IP_COMPONENT_DSNS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID);
+                return IFX_SP_ENH_ERROR(IFX_SP_ENH_IP_COMPONENT_DSES, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID);
 #endif
                 break;
             }
@@ -667,18 +692,18 @@ int32_t ifx_sp_enh_process(void* modelPt, void* input1, void* input2, void* refe
                         dsns_settings_struct_t* dsns_pt = lPt->settings_struct;
                         if (COMPONENT_FLAG_IS_SET(dPt->reset_flag, IFX_SP_ENH_IP_COMPONENT_DSNS))
                         {
-                            ifx_dsns_reset(lPt);
+                            ifx_dsns_reset(dPt, lPt);
                             dPt->reset_flag = COMPONENT_CLEAR_FLAG(dPt->reset_flag, IFX_SP_ENH_IP_COMPONENT_DSNS);
                         }
                         if (COMPONENT_FLAG_IS_SET(dPt->active_flag, IFX_SP_ENH_IP_COMPONENT_DSNS))
                         {
                             if (dsns_gain_mask)
                             {/* Both DSES & DSNS active and post process will be in DSES */
-                                status |= ifx_dsns_process(subband_out_pt, lPt, &(dPt->scratch), dsns_pt->ns_gain_dB, true); /* Output overwrite input */
+                                status |= ifx_dsns_process(subband_out_pt, analysis_out2_pt, dPt, lPt, dsns_pt->ns_gain_dB, true); /* Output overwrite input */
                             }
                             else
                             {/* Only DSNS active */
-                                status |= ifx_dsns_process(subband_out_pt, lPt, &(dPt->scratch), dsns_pt->ns_gain_dB, false); /* Output overwrite input */
+                                status |= ifx_dsns_process(subband_out_pt, analysis_out2_pt, dPt, lPt, dsns_pt->ns_gain_dB, false); /* Output overwrite input */
                             }
                         }
                         if (COMPONENT_FLAG_IS_SET(dPt->monitor_flag, IFX_SP_ENH_IP_COMPONENT_DSNS))

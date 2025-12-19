@@ -94,7 +94,13 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
     {
         return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
     }
-    if (sampling_rate != 16000)
+    if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_ASRC_LPF || ip_id == IFX_PRE_PROCESS_IP_COMPONENT_HPF)
+    {
+        if (sampling_rate != 16000 && sampling_rate != 44100 && sampling_rate != 48000) {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+    }
+    else if (sampling_rate != 16000)
     {
         return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
     }
@@ -108,6 +114,20 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
     ip_infoPt->sampling_rate = sampling_rate;
     ip_infoPt->input_frame_size = frame_size;
 
+#ifdef ENABLE_IFX_AGC
+    if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+    {
+        if (frame_size <= 0 || sz != AGC_PARMS_SIZE) /* AGC parameter size */
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+        ip_infoPt->output_size = frame_size;
+        /* fill zeros for parameter don't care or not applicable */
+        ip_infoPt->frame_shift = 0;
+        ip_infoPt->fft_block_size = 0;
+    }
+    else
+#endif
 #ifdef ENABLE_IFX_VA_WWD
     if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_DENOISE)
     {
@@ -140,7 +160,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
 #ifdef ENABLE_IFX_VA_CMD
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_DFCMD)
     {
-        if (frame_size != 160 || sz != 1)
+        if (frame_size != 160 || sz != 2)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
         }
@@ -154,7 +174,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
 #ifdef ENABLE_IFX_PRE_PROCESS_HPF
     if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_HPF)
     {
-        if (frame_size != 160 || sz != 0)
+        if (frame_size <= 0 || sz != 0)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -168,7 +188,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
 #ifdef ENABLE_IFX_PRE_PROCESS_ASRC_LPF
     if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_ASRC_LPF)
     {
-        if (frame_size != 160 || sz != 0)
+        if (frame_size <= 0 || sz != 0)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -260,8 +280,8 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
     }
 
 #if defined(ENABLE_IFX_SOD) || defined(ENABLE_IFX_LPWWD) || \
-    defined(ENABLE_IFX_PRE_PROCESS_HPF) || defined(ENABLE_IFX_PRE_PROCESS_ARSC_LPF) || \
-    defined(ENABLE_IFX_VA_WWD) || defined(ENABLE_IFX_VA_CMD) || defined(ENABLE_IFX_FE)
+    defined(ENABLE_IFX_PRE_PROCESS_HPF) || defined(ENABLE_IFX_PRE_PROCESS_ASRC_LPF) || \
+    defined(ENABLE_IFX_VA_WWD) || defined(ENABLE_IFX_VA_CMD) || defined(ENABLE_IFX_FE) || defined(ENABLE_IFX_AGC)
     /* Get required memory for model configuration */
     ret = speech_utils_getMem(ip_prms_config, ip_id, &mem_info);
     if (ret != IFX_SP_ENH_SUCCESS)
@@ -309,7 +329,13 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     {
         return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
-    if (sampling_rate != 16000)
+    if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_ASRC_LPF || ip_id == IFX_PRE_PROCESS_IP_COMPONENT_HPF)
+    {
+        if (sampling_rate != 16000 && sampling_rate != 44100 && sampling_rate != 48000) {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+    }
+    else if (sampling_rate != 16000)
     {
         return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
     }
@@ -529,6 +555,44 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     }
     else
 #endif
+#ifdef ENABLE_IFX_AGC
+    if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+    {/* Add AGC set up and init here */
+        postprocess_agc_top_struct* dPt = (postprocess_agc_top_struct*)(ip_infoPt->memory.persistent_mem_pt);
+        int16_t agcParms[AGC_PARMS_SIZE];
+        int32_t status;
+
+        /* Set up post-process AGC data structure in persistent memory */
+        sz = ALIGN_WORD(sizeof(postprocess_agc_top_struct));
+        memset(dPt, 0, sz);
+        dPt->enable_flag = true; /* enable by default */
+        dPt->sample_rate = sampling_rate;
+        dPt->frame_size = frame_size;
+        dPt->ifx_agc.persistent_size = ip_infoPt->memory.persistent_mem;
+        dPt->ifx_agc.persistent_pad = ip_infoPt->memory.persistent_mem_pt;
+        dPt->ifx_agc.scratch.scratch_size = ip_infoPt->memory.scratch_mem;
+        dPt->ifx_agc.scratch.scratch_pad = ip_infoPt->memory.scratch_mem_pt;
+
+        /* Initialize internal AGC structure */
+        dPt->ifx_agc.ifx_component_pt = dPt->ifx_agc.persistent_pad + sz;
+
+        for (int i = 0; i < AGC_PARMS_SIZE; i++)
+        {/* Copy agc configuable parameters for ifx_agc_config_prms.h */
+            agcParms[i] = (int16_t)(*int_idx++);
+        }
+        status = ifx_agc_init(dPt, agcParms);
+        *ifx_container = dPt;
+        if (status != IFX_SP_ENH_SUCCESS)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+        else
+        {
+            return IFX_SP_ENH_SUCCESS;
+        }
+    }
+    else
+#endif
     {
         return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
     }
@@ -540,7 +604,7 @@ int32_t ifx_time_pre_process(IFX_SP_DATA_TYPE_T* input1, IFX_SP_DATA_TYPE_T* inp
     /* Sanity check of input arguments */
     if (preprocess_container == NULL || (input1 == NULL && input2 == NULL) || (output1 == NULL && output2 == NULL))
     {
-        return IFX_SP_ENH_ERROR(IFX_SP_ENH_COMPONENT_ID_INVALID, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
+        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
 #ifdef ENABLE_IFX_PRE_PROCESS_HPF
     if (component_id == IFX_PRE_PROCESS_IP_COMPONENT_HPF)
@@ -622,7 +686,52 @@ int32_t ifx_time_pre_process(IFX_SP_DATA_TYPE_T* input1, IFX_SP_DATA_TYPE_T* inp
     }
     else
 #endif
-    return IFX_SP_ENH_ERROR(IFX_PRE_PROCESS_IP_COMPONENT_MFCC, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
+    return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
+}
+
+int32_t ifx_time_post_process(IFX_SP_DATA_TYPE_T* input, void* postprocess_container, int32_t component_id, IFX_SP_DATA_TYPE_T* output)
+{
+    (void)component_id;
+    /* Sanity check of input arguments */
+    if (postprocess_container == NULL || input == NULL || output == NULL)
+    {
+        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
+    }
+#ifdef ENABLE_IFX_AGC
+    int32_t status;
+    if (component_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+    {
+        postprocess_agc_top_struct* dPt = (postprocess_agc_top_struct *)postprocess_container;
+        if (dPt->ifx_agc.reset_flag)
+        {/* one time reset */
+            dPt->ifx_agc.reset_flag = false;
+            status = ifx_agc_reset(postprocess_container);
+            if (status != IFX_SP_ENH_SUCCESS)
+            {
+                return status;
+            }
+        }
+#ifdef PROFILER
+        ifx_cycle_profile_start(&(dPt->ifx_agc.profile));
+#endif
+        if (dPt->enable_flag)
+        {
+            status = ifx_agc(postprocess_container, input, output);
+        }
+        else
+        {
+            uint32_t size = (dPt->frame_size) * sizeof(IFX_SP_DATA_TYPE_T);
+            memcpy(output, input, size);
+            status = IFX_SP_ENH_SUCCESS;
+        }
+#ifdef PROFILER
+        ifx_cycle_profile_stop(&(dPt->ifx_agc.profile));
+#endif
+        return status;
+    }
+    else
+#endif
+    return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
 }
 
 int32_t ifx_spectrogram_transfer(IFX_SP_DATA_TYPE_T* in, void* spectrogram_container, IFX_FE_DATA_TYPE_T* fe_out, int32_t* out_q)
@@ -718,12 +827,22 @@ int32_t ifx_pre_post_process_mode_control(void* container, int32_t component_id,
         }
         else
 #endif
+#ifdef ENABLE_IFX_AGC
+        if (component_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+        {
+            postprocess_agc_top_struct* dPt;
+
+            dPt = (postprocess_agc_top_struct*)container;
+            dPt->ifx_agc.reset_flag = true;
+        }
+        else
+#endif
         {
             ErrIdx = IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
         }
     }
 
-    /* For now, enable/disable only applicable to SOD & preprocess HPF */
+    /* For now, enable/disable only applicable to SOD, HPF, ASRC LPF, AGC */
 #ifdef ENABLE_IFX_SOD
     if (component_id == IFX_PRE_PROCESS_IP_COMPONENT_SOD)
     {
@@ -732,7 +851,6 @@ int32_t ifx_pre_post_process_mode_control(void* container, int32_t component_id,
         dPt = (sod_top_struct*)container;
         dPt->enable_flag = enable;
     }
-    else
 #endif
 #ifdef ENABLE_IFX_PRE_PROCESS_HPF
     if (component_id == IFX_PRE_PROCESS_IP_COMPONENT_HPF)
@@ -749,6 +867,15 @@ int32_t ifx_pre_post_process_mode_control(void* container, int32_t component_id,
         preprocess_asrc_lpf_top_struct* dPt;
 
         dPt = (preprocess_asrc_lpf_top_struct*)container;
+        dPt->enable_flag = enable;
+    }
+#endif
+#ifdef ENABLE_IFX_AGC
+    if (component_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+    {
+        postprocess_agc_top_struct* dPt;
+
+        dPt = (postprocess_agc_top_struct*)container;
         dPt->enable_flag = enable;
     }
 #endif
@@ -805,6 +932,16 @@ int32_t ifx_pre_post_process_status(void* container, int32_t component_id)
     if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {/* HMMS post process is always enabled */
         status = true;
+    }
+    else
+#endif
+#ifdef ENABLE_IFX_AGC
+    if (component_id == IFX_POST_PROCESS_IP_COMPONENT_AGC)
+    {
+        postprocess_agc_top_struct* dPt;
+
+        dPt = (postprocess_agc_top_struct*)container;
+        status = dPt->enable_flag;
     }
     else
 #endif

@@ -1,5 +1,8 @@
 # Audio voice core library
+
 Audio voice core middleware consists of core audio algorithm implementation. It contains core algorithm implementation for speech-onset-detection, low-power wake word detection, and audio front-end.
+
+This repository provides core libraries designed to integrate with Infineon middleware. In addition, utility modules such as ASRC, AGC, and LPF are provided, which can be directly utilized by applications for standalone audio processing tasks.
 
 ## Supported platforms
 PSoC&trade; Edge E84 MCU
@@ -20,3 +23,11 @@ Note: AVC_DEMO provides limited functionality for evaluation purposes. For produ
 ## Additional information
 * [Audio voice core RELEASE.md](./RELEASE.md)
 * [Audio voice core library version](./version.txt)
+
+## Utility Modules
+The following utilities can be used directly by applications. Refer to their specific README files for details:
+
+- [ASRC Utility](./docs/ASRC-README.md)
+- [AGC Utility](./docs/AGC-README.md)
+- [LPF Utility](./docs/LPF-README.md)
+- [HPF Utility](./docs/HPF-README.md)
