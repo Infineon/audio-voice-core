@@ -59,9 +59,9 @@ extern "C" {
 * Macros
 *******************************************************************************/
 #define IFX_SP_LPWWD_VERSION_MAJOR            2
-#define IFX_SP_LPWWD_VERSION_MINOR            7
-#define IFX_SP_LPWWD_VERSION_PATCH            2
-#define IFX_SP_LPWWD_VERSION                  272
+#define IFX_SP_LPWWD_VERSION_MINOR            8
+#define IFX_SP_LPWWD_VERSION_PATCH            0
+#define IFX_SP_LPWWD_VERSION                  280
 
 /*******************************************************************************
 * Speech utilities data type & defines
@@ -71,6 +71,8 @@ extern "C" {
 
 #define AGC_PARMS_SIZE  (7)             /* Number of AGC parameters */
 
+#define MAX_WW_SERIES   (2)             /* Maximum number of WWD series in low power WWD */
+#define MAX_WW_TOKENS   (4)             /* Maximum number of WWD tokens in low power WWD */
 /*******************************************************************************
 * Structures and enumerations
 *******************************************************************************/
@@ -78,7 +80,7 @@ extern "C" {
 typedef struct component_top_struct_t
 {
     /*@{*/
-    void* ifx_component_pt;             /**<: Infineon LPWWD component data structure pointer */
+    void* ifx_component_pt;             /**<: Infineon component data structure pointer */
     ifx_scratch_mem_t scratch;          /**<: Point to scratch memory structure */
     char* persistent_pad;               /**<: pointer to allocated persistent memory */
     int32_t persistent_size;            /**<: allocated persistent memory size */
@@ -110,16 +112,26 @@ typedef struct spectrogram_top_struct_t
     /*@}*/
 } spectrogram_top_struct;
 
-typedef struct postprocess_top_struc_t
+typedef struct hmms_postprocess_top_struc_t
 {
     /*@{*/
-    component_top_struct pp_component;       /**<: Infineon post processing component structure */
+    component_top_struct pp_component;       /**<: Infineon hmms post processing component structure */
     int32_t fps;                             /**<: frame per second rate should be on the order of 20-50Hz */
     int32_t lookback_buffer_length;          /**<: lookback buffer length in seconds, Q12 */
     int32_t stacked_frame_delay;             /**<: stacked frame delay in second, Q12 */
     int32_t detection_threshold;             /**<: upper 16bit is detection_threshold, lower 16bit is set (update) flag */
     /*@}*/
-} postprocess_top_struct;
+} hmms_postprocess_top_struct;
+
+typedef struct lpwwd_postprocess_top_struc_t
+{
+    /*@{*/
+    component_top_struct pp_component;       /**<: Infineon lpwwd post processing component structure */
+    uint8_t ww_series;                       /**<: number of WW series */
+    uint8_t ww_tokens;                       /**<: number of WW tokens */
+    uint16_t timeout_threshold;              /**<: total timeout threshold */
+    /*@}*/
+} lpwwd_postprocess_top_struct;
 
 typedef struct preprocess_hpf_top_struct
 {
@@ -266,7 +278,12 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
 */
 int32_t speech_utils_sod_init(int32_t* sod_prms_buffer, void** sod_container, mem_info_t* sod_mem_infoPt);
 
-int fixed_lpwwd_post_calculate_persistent_mem_size();
+int fixed_lpwwd_post_hmms_calculate_persistent_mem_size(); /* HMMS post process internal persistent memory size */
+
+int ifx_lpwwd_post_process_calculate_persistent_mem_size(); /* LPWWD post process internal persistent memory size */
+
+uint32_t ifx_lpwwd_post_process_init(void **ifx_container, mem_info_t* mem_infoPt, IFX_PPINPUT_DATA_TYPE_T *prob_threshold, uint8_t *count_threshold,
+         uint8_t *gap_threshold, uint8_t ww_series, uint8_t ww_tokens, uint16_t timeout_threshold, uint16_t garbage_count_threshold, uint16_t garbage_count_2nd_threshold);
 
 /***************************************************************************************
 * Function: fixed_lpwwd_post_get_float_score(void *postprocPt)

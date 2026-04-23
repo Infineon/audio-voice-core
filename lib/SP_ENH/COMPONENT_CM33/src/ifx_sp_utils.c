@@ -163,12 +163,26 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
 #ifdef ENABLE_IFX_LPWWD
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
+#ifdef ENABLE_IFX_LPWWD_HMMS
         if (sampling_rate != 16000)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
 
-        persistent_sz = ALIGN_WORD(sizeof(postprocess_top_struct)) + fixed_lpwwd_post_calculate_persistent_mem_size();
+        persistent_sz = ALIGN_WORD(sizeof(hmms_postprocess_top_struct)) + fixed_lpwwd_post_hmms_calculate_persistent_mem_size();
+        scratch_sz = ALIGN_WORD(1);     /* Avoid zero */
+#else
+        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+#endif
+    }
+    else if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
+    {
+        if (sampling_rate != 16000)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+
+        persistent_sz = ALIGN_WORD(sizeof(lpwwd_postprocess_top_struct)) + ifx_lpwwd_post_process_calculate_persistent_mem_size();
         scratch_sz = ALIGN_WORD(1);     /* Avoid zero */
     }
     else
@@ -413,9 +427,10 @@ int32_t ifx_sod_process(IFX_SP_DATA_TYPE_T *in, void *sod_container, bool *vad)
 #endif
 
 #ifdef ENABLE_IFX_LPWWD
-int32_t speech_utils_post_process_get_threshold(void* postprocess_container, float* threshold)
+int32_t speech_utils_hmms_post_process_get_threshold(void* postprocess_container, float* threshold)
 {
-    postprocess_top_struct* dPt;
+#ifdef ENABLE_IFX_LPWWD_HMMS
+    hmms_postprocess_top_struct* dPt;
 
     /* Sanity check of input arguments */
     if (postprocess_container == NULL)
@@ -423,15 +438,20 @@ int32_t speech_utils_post_process_get_threshold(void* postprocess_container, flo
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
 
-    dPt = (postprocess_top_struct*)postprocess_container;
+    dPt = (hmms_postprocess_top_struct*)postprocess_container;
 
     *threshold = (float)fixed_lpwwd_post_get_threshold(dPt->pp_component.ifx_component_pt) / (1 << PP_SECOND_CONVERTION_Q); //Q12
     return IFX_SP_ENH_SUCCESS;
+#else
+    *threshold = 0.0f;
+    return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+#endif
 }
 
-int32_t speech_utils_post_process_get_score(void* postprocess_container, float* score)
+int32_t speech_utils_hmms_post_process_get_score(void* postprocess_container, float* score)
 {
-    postprocess_top_struct* dPt;
+#ifdef ENABLE_IFX_LPWWD_HMMS
+    hmms_postprocess_top_struct* dPt;
 
     /* Sanity check of input arguments */
     if (postprocess_container == NULL)
@@ -439,10 +459,14 @@ int32_t speech_utils_post_process_get_score(void* postprocess_container, float* 
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
 
-    dPt = (postprocess_top_struct*)postprocess_container;
+    dPt = (hmms_postprocess_top_struct*)postprocess_container;
 
     *score = fixed_lpwwd_post_get_float_score(dPt->pp_component.ifx_component_pt);
     return IFX_SP_ENH_SUCCESS;
+#else
+    *score = 0.0f;
+    return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+#endif
 }
 #endif
 

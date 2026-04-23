@@ -58,15 +58,32 @@ typedef struct
     int lookback_buffer_length; // loockback buffer length, in samples
     int stacked_frame_delay; // NN stacked frame delay, in samples
     int detection_threshold; // upper 16bit is detection_threshold, lower 16bit is set (update) flag
-} cy_inference_post_process_config_params_t;
+} ifx_hmms_post_process_config_params_t;
 
 typedef struct
 {
-    ifx_stc_pre_post_process_info_t pphmms_info;
+    int configuration_version; // configuration version, 0 for manully generated parameter file
+    int sampling_rate; // Sampling rate
+    int frame_size; // audio frame size in samples
+    int component_id; // component ID
+    int num_parms; // number of parameters
+    int ww_series; // number of repeated keywords
+    int ww_tokens; // number of tokens per keyword
+    int garbage_count_threshold; // garbage count threshold
+    int garbage_count_2nd_threshold; // garbage count 2nd threshold
+    int timeout_threshold; // timeout threshold
+    int prob_thresholds[MAX_WW_TOKENS]; // probability thresholds for each keyword token
+    int pass_count_thresholds[MAX_WW_TOKENS]; // pass count thresholds for each keyword token
+    int gap_thresholds[MAX_WW_TOKENS]; // gap thresholds for each keyword token
+} ifx_lpwwd_post_process_config_params_t;
+
+typedef struct
+{
+    ifx_stc_pre_post_process_info_t pp_info;
     void* pp_handle;
 } cy_inference_post_process_handle;
 
-cy_rslt_t cy_inference_post_process_init(cy_inference_post_process_config_params_t* config, cy_inference_post_process_handle** handle);
+cy_rslt_t cy_inference_post_process_init(void* config, cy_inference_post_process_handle** handle, int32_t component_id);
 cy_rslt_t cy_inference_post_process(cy_inference_post_process_handle* handle, IFX_PPINPUT_DATA_TYPE_T* output_score, int32_t* decision);
 cy_rslt_t cy_inference_post_process_reset(cy_inference_post_process_handle* handle);
 cy_rslt_t cy_inference_post_process_deinit(cy_inference_post_process_handle* handle);

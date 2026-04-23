@@ -72,24 +72,23 @@ extern "C" {
 #define ALEXA_HEYGOOGLE_SECOND_WAKEUP_INT8_NN   15
 #define ALEXA_HEYGOOGLE_FIRST_WAKEUP_F32_NN     16
 #define ALEXA_HEYGOOGLE_SECOND_WAKEUP_F32_NN    17
-
+#define XIAODU_XIAODU_F32_NN        18
+#define XIAODU_XIAODU_INT8_NN       19
 /**
- * User can define ACTIVE_KW elsewhere (may be in makefile) and also enable 
+ * User can define ACTIVE_KW elsewhere (may be in makefile) and also enable
  * HMMS_CONFIG_MODEL to choose model using the file hmms_model_config.c
- * 
+ *
  * if the variable HMMS_CONFIG_MODEL is defined and ACTIVE_KW is not defined
- * then 
+ * then
  */
 #ifndef ACTIVE_KW
 #define ACTIVE_KW   OKIFX_UNIT_TEST
 #endif
 
 #define MAX_CLASS_ID_LENGTH (512)   /* Maximum characters used to describe NN inference output definitions */
-#define PP_CLASS_WWDTOKEN0  (0)     /* Wake word token0 is the first of one keyword NN inference output */
-#define PP_CLASS_WWDTOKEN1  (1)     /* Wake word token1 is the second of one keyword NN inference output */
-#define PP_CLASS_GARBAGE    (2)     /* Garbage is the third of one keyword NN inference output */
-#define PP_CLASS_NOISE      (3)     /* Noise is the last of one keyword NN inference output */
-#define NUM_PP_CLASS        (4)     /* Output class size of one keyword NN inference */
+#define NUM_PP_CLASS_2TOKEN_WW (4)  /* Output class size of two token keyword NN inference in the order of token0, token1, garbage, noise */
+#define NUM_PP_CLASS_4TOKEN_WW (6)  /* Output class size of four token keyword NN inference in the order of token0, token1, token2, token3 garbage, noise*/
+#define MAX_WW_TOKENS          (4)  /* Maximum number of WWD tokens in low power WWD */
 
 /*******************************************************************************
 * Infineon speech common data type & defines

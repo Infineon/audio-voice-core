@@ -77,6 +77,7 @@ typedef enum
     IFX_POST_PROCESS_IP_COMPONENT_HMMS,
     IFX_POST_PROCESS_IP_COMPONENT_DFCMD,
     IFX_POST_PROCESS_IP_COMPONENT_AGC,
+    IFX_POST_PROCESS_IP_COMPONENT_LPWWD,
     IFX_POST_PROCESS_IP_COMPONENT_MAX_COUNT
 } ifx_pre_post_ip_component_config_t;
 
@@ -280,11 +281,15 @@ int32_t ifx_post_process(IFX_PPINPUT_DATA_TYPE_T *in_probs, void *postprocess_co
  * \param[in]  id_string                : Pointer to string decribing the inference classification indetifications which must contain
  *                                        "WWDtoken0", "WWDtoken1", and "noise". Each ID should only occur once, and its position in the
  *                                        string corresponds to its inference classification position. Please notice that "garbage" is a
- *                                        optional ID since initilization process will treat other than above 3 IDs as garbage. Each ID shall
+ *                                        optional ID since initilization process will treat other than above IDs as garbage. Each ID shall
  *                                        be seperated by ",".
  *                                        Note the inference classification IDs order is decided by the NN model during NN model training.
- *                                        The number of classes is 6 with two key words model. For one KW model, the number of class is 4.
-* \param[in]  size                     : Inference output classification size
+ *                                        For example, "WWDtoken0,WWDtoken1,WWDtoken2,WWDtoken3,garbage,noise" is a valid id_string for 4 token WW model.
+ *                                        The number of classes is 6 with 4 token WW model. For 2 token KW model, the number of class is 4.
+ *                                        For 2 token 2 WW model, the number of class is 6, and 2 WW model only support 2 token per WW.
+ *                                        The last two are always garbage and noise.
+ * \param[in]  size                     : Inference output classification size
+ * \param[in]  ww_tokens                : Number of tokens in wake word
  * \param[out] output_id_array          : Pointer to the output buffer containing inference classification indetification number.
  * \return                              : Return 0 when success, otherwise return error code
  *                                        INVALID_ARGUMENT if input or output argument is invalid
@@ -293,16 +298,17 @@ int32_t ifx_post_process(IFX_PPINPUT_DATA_TYPE_T *in_probs, void *postprocess_co
  *                                        code is in 16bit MSB, and its IP component index if applicable will be at
  *                                        bit 8 to 15 in the combined 32bit return value.
 */
-int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, int size);
+int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, int size, int ww_tokens);
 
 /**
  * \brief : ifx_class_convertion_for_pp() is the API function to convert multi-keyword inference output to one keyword post-process
  *          classification before using post process to declare WWD.
  *
  * \param[in]  input_score              : Pointer to two keyword inference output buffer
- * \param[in]  data_type                : Infineon inference output data type
+ * \param[in]  data_type                : Infineon inference output (input_score) data type, and it is also output_score data type.
  * \param[in]  id_array                 : Pointer to the buffer containing inference classification indetification number
  * \param[in]  size                     : Inference output classification size
+ * \param[in]  ww_tokens                : Number of tokens in wake word
  * \param[out] output_score             : Corresponding one key word inference output buffer pointer.
  * \return                              : Return 0 when success, otherwise return error code
  *                                        INVALID_ARGUMENT if input or output argument is invalid
@@ -311,7 +317,7 @@ int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, i
  *                                        code is in 16bit MSB, and its IP component index if applicable will be at
  *                                        bit 8 to 15 in the combined 32bit return value.
 */
-int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* output_score, int* id_array, int size);
+int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* output_score, int* id_array, int size, int ww_tokens);
 
 /**
  * \brief : ifx_pre_post_process_mode_control() is the API function to control Infineon pre and post process compenent's mode.
@@ -589,6 +595,38 @@ uint32_t ifx_get_cmd_llscore(void* StrucPt, float* cmd_llscore);
  *                                 bit 8 to 15 in the combined 32bit return value.
 */
 uint32_t ifx_get_nmb_llscore(void* StrucPt, float* nmb_llscore);
+
+/**
+ * \brief : ifx_lpwwd_post_process() is the API function to use output of the Neural Network and use lpwwd post process to declare WWD. 
+ *
+ *
+ * \param[in]  postprocess_container    : Pointer to lpwwd postprocess container that contains state memory and parameters
+ * \param[in]  in_probs                 : pointer for the buffer containing output probabilities from classifier in 
+ *                                        the order of token 1, token 2, garbage, noise.
+ * \param[out] detection                : Detection output; 0 means monitoring, positive means detected, negative means rejected.
+ * \return                              : Return 0 when success, otherwise return error code
+ *                                        INVALID_ARGUMENT if input or output argument is invalid
+ *                                        or error code from specific infineon post process component.
+ *                                        Please note error code is 8bit LSB, line number where the error happened in
+ *                                        code is in 16bit MSB, and its IP component index if applicable will be at
+ *                                        bit 8 to 15 in the combined 32bit return value.
+*/
+uint32_t ifx_lpwwd_post_process(void* postprocess_container, IFX_PPINPUT_DATA_TYPE_T* in_probs, int32_t* detection);
+
+
+/**
+ * \brief : ifx_lpwwd_post_process_reset() is the API function to reset lpwwd post process memory and state. 
+ *
+ *
+ * \param[in]  postprocess_container    : Pointer to lpwwd postprocess container that contains state memory and parameters
+ * \return                              : Return 0 when success, otherwise return error code
+ *                                        INVALID_ARGUMENT if input or output argument is invalid
+ *                                        or error code from specific infineon post process component.
+ *                                        Please note error code is 8bit LSB, line number where the error happened in
+ *                                        code is in 16bit MSB, and its IP component index if applicable will be at
+ *                                        bit 8 to 15 in the combined 32bit return value.
+*/
+uint32_t ifx_lpwwd_post_process_reset(void* postprocess_container);
 
 #if defined(__cplusplus)
 }

@@ -15,7 +15,7 @@ Define the AVC (Audio Voice Core) component in the application's makefile. Choos
 ```makefile
 COMPONENTS+=AVC_DEMO   # Limited functionality for evaluation
 # or
-COMPONENTS+=AVC_FULL   # Full AVC capabilities (production use)
+COMPONENTS+=AVC_FULL   # Full capabilities for production use
 ```
 
 Note: AVC_DEMO provides limited functionality for evaluation purposes. For production use with full AVC capabilities, use AVC_FULL. Contact Infineon support for licensing information and access to the full version.

@@ -56,6 +56,8 @@
 #include "ifx_cycle_profiler.h"
 #endif
 
+/* Number of parameters is MAX_WW_TOKENS * 3 (i.e. prob thrshold, count threshold, & gap threshold) + 5 (Nww_series, ww_tokens, total_time, 2 garbage count thresholds) */
+#define LPWWD_PP_PARMS_SIZE 17 /* Number of parameters for LPWWD post process */
 /******************************************************************************
 * Global variables
 *****************************************************************************/
@@ -250,6 +252,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
 #if defined(ENABLE_IFX_LPWWD)
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
+#ifdef ENABLE_IFX_LPWWD_HMMS
         if (sz != 4)
         {/* Only four parameters */
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
@@ -257,6 +260,63 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
         /* fill zeros for parameter don't care or not applicable */
         ip_infoPt->frame_shift = 0;
         ip_infoPt->output_size = 0;
+        ip_infoPt->fft_block_size = 0;
+#else
+        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+#endif
+    }
+    else if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
+    {
+        if (sz != LPWWD_PP_PARMS_SIZE)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
+        }
+        uint8_t ww_series = *int_idx++;    /* number of  WW */
+        uint8_t ww_tokens = *int_idx++;     /* number of WW tokens */
+        if (ww_series == 0 || ww_series > MAX_WW_SERIES ||
+            ww_tokens == 0 || ww_tokens > MAX_WW_TOKENS || (ww_series * ww_tokens > MAX_WW_TOKENS))
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+        uint16_t garbage_count_threshold = *int_idx++; /* garbage count threshold */
+        uint16_t garbage_count_2nd_threshold = *int_idx++;   /* garbage count 2nd threshold */
+        uint16_t total_timeout_threshold = *int_idx++; /* total timeout threshold */
+        if (total_timeout_threshold == 0 || total_timeout_threshold > INT16_MAX ||
+            garbage_count_threshold > INT8_MAX ||
+            garbage_count_2nd_threshold > INT8_MAX)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+        IFX_PPINPUT_DATA_TYPE_T prob_threshold[MAX_WW_TOKENS];
+        for (int i = 0; i < MAX_WW_TOKENS; i++)
+        {
+            prob_threshold[i] = *int_idx++; /* probability threshold for each token */
+            if (prob_threshold[i] < 0 || prob_threshold[i] > INT16_MAX)
+            {
+                return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+            }
+        }
+        uint8_t count_threshold[MAX_WW_TOKENS];
+        for (int i = 0; i < MAX_WW_TOKENS; i++)
+        {
+            count_threshold[i] = *int_idx++; /* count threshold for each token */
+            if (count_threshold[i] > UINT8_MAX)
+            {
+                return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+            }
+        }
+        uint8_t gap_threshold[MAX_WW_TOKENS];
+        for (int i = 0; i < MAX_WW_TOKENS; i++)
+        {
+            gap_threshold[i] = *int_idx++; /* gap threshold for each token */
+            if (gap_threshold[i] > UINT8_MAX)
+            {
+                return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+            }
+        }
+        /* fill zeros for parameter don't care or not applicable */
+        ip_infoPt->frame_shift = 0;
+        ip_infoPt->output_size = 1;
         ip_infoPt->fft_block_size = 0;
     }
     else
@@ -312,14 +372,14 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     {
         return IFX_SP_ENH_ERROR(IFX_SP_ENH_COMPONENT_ID_INVALID, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
-   
+
     /* read first five parameters which are always same definition */
     sz = *int_idx++;                /* Configurator version, ignore for now */
     sampling_rate = *int_idx++;     /* sampling rate */
     frame_size    = *int_idx++;     /* frame size */
     ip_id = *int_idx++;             /* IP component ID */
     sz = *int_idx++;                /* number of following parameters */
-    
+
     /* Sanity check of input arguments */
     if (ifx_container == NULL || ip_infoPt == NULL)
     {
@@ -435,7 +495,8 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
         int32_t ret;
-        postprocess_top_struct* pp_ptr;
+#ifdef ENABLE_IFX_LPWWD_HMMS
+        hmms_postprocess_top_struct* pp_ptr;
         int16_t detection_th, set_flag;
 
         if (sz != 4)
@@ -443,8 +504,8 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
         /* Set up post processing data structure in persistent memory */
-        pp_ptr = (postprocess_top_struct*)(ip_infoPt->memory.persistent_mem_pt);
-        memset(pp_ptr, 0, sizeof(postprocess_top_struct));
+        pp_ptr = (hmms_postprocess_top_struct*)(ip_infoPt->memory.persistent_mem_pt);
+        memset(pp_ptr, 0, sizeof(hmms_postprocess_top_struct));
 
         pp_ptr->pp_component.persistent_size = ip_infoPt->memory.persistent_mem;
         pp_ptr->pp_component.persistent_pad = ip_infoPt->memory.persistent_mem_pt;
@@ -452,14 +513,14 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
         pp_ptr->pp_component.scratch.scratch_pad = ip_infoPt->memory.scratch_mem_pt;
 
         /* Initialize internal post processing structure */
-        pp_ptr->pp_component.ifx_component_pt = pp_ptr->pp_component.persistent_pad + ALIGN_WORD(sizeof(postprocess_top_struct));
+        pp_ptr->pp_component.ifx_component_pt = pp_ptr->pp_component.persistent_pad + ALIGN_WORD(sizeof(hmms_postprocess_top_struct));
         pp_ptr->fps = *int_idx++;
         pp_ptr->lookback_buffer_length = *int_idx++;
         pp_ptr->stacked_frame_delay = *int_idx++;
         pp_ptr->detection_threshold = *int_idx++;
         set_flag = (int16_t)(pp_ptr->detection_threshold & 0xFFFF); /* lower 16bit is set flag */
         detection_th = (int16_t)(pp_ptr->detection_threshold >> 16);/* upper 16bit is the detection threshold */
-#ifdef HMMS_CONFIG_MODEL //This compilation switch need to be set if target platform has no file IO support to read model data files.
+#if HMMS_CONFIG_MODEL //This compilation switch need to be set if target platform has no file IO support to read model data files.
         ret = fixed_init_lpwwd_post(pp_ptr->pp_component.ifx_component_pt, pp_ptr->lookback_buffer_length, pp_ptr->stacked_frame_delay, detection_th, set_flag);
 #else
         extern int16_t* ppkwmodel;
@@ -471,7 +532,74 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
-        *ifx_container = pp_ptr;
+       *ifx_container = pp_ptr;
+#else
+        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+#endif
+        return ret;
+    }
+    else if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
+    {
+        if (sz != LPWWD_PP_PARMS_SIZE)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
+        }
+        int32_t ret;
+        uint8_t ww_series = *int_idx++;    /* number of  WW */
+        uint8_t ww_tokens = *int_idx++;     /* number of WW tokens */
+        if (ww_series == 0 || ww_series > MAX_WW_SERIES ||
+            ww_tokens == 0 || ww_tokens > MAX_WW_TOKENS || (ww_series * ww_tokens > MAX_WW_TOKENS))
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+        uint16_t garbage_count_threshold = *int_idx++; /* garbage count threshold */
+        uint16_t garbage_count_2nd_threshold = *int_idx++;   /* garbage count 2nd threshold */
+        uint16_t timeout_threshold = *int_idx++; /* total timeout threshold */
+        if (timeout_threshold == 0 || timeout_threshold > INT16_MAX ||
+            garbage_count_threshold > INT16_MAX ||
+            garbage_count_2nd_threshold > INT16_MAX)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+        }
+        IFX_PPINPUT_DATA_TYPE_T prob_threshold[MAX_WW_TOKENS];
+        for (int i = 0; i < MAX_WW_TOKENS; i++)
+        {
+            prob_threshold[i] = *int_idx++; /* probability threshold for each token */
+            if (prob_threshold[i] < 0 || prob_threshold[i] > INT16_MAX)
+            {
+                return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+            }
+        }
+        uint8_t count_threshold[MAX_WW_TOKENS];
+        for (int i = 0; i < MAX_WW_TOKENS; i++)
+        {
+            count_threshold[i] = *int_idx++; /* count threshold for each token */
+            if (count_threshold[i] > UINT8_MAX)
+            {
+                return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+            }
+        }
+        uint8_t gap_threshold[MAX_WW_TOKENS];
+        for (int i = 0; i < MAX_WW_TOKENS; i++)
+        {
+            gap_threshold[i] = *int_idx++; /* gap threshold for each token */
+            if (gap_threshold[i] > UINT8_MAX)
+            {
+                return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
+            }
+        }
+
+        ret = ifx_lpwwd_post_process_init(ifx_container, &(ip_infoPt->memory), prob_threshold, count_threshold, gap_threshold,
+                    ww_series, ww_tokens, timeout_threshold, garbage_count_threshold, garbage_count_2nd_threshold);
+        return ret;
+    }
+    else
+#endif
+#ifdef ENABLE_IFX_SOD
+    if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_SOD)
+    {
+        int32_t ret;
+        ret = speech_utils_sod_init(ip_prms_config, ifx_container, &(ip_infoPt->memory));
         return ret;
     }
     else
@@ -820,10 +948,19 @@ int32_t ifx_pre_post_process_mode_control(void* container, int32_t component_id,
         else
 #endif
 #ifdef ENABLE_IFX_LPWWD
+#ifdef ENABLE_IFX_LPWWD_HMMS
         if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
         {
-            postprocess_top_struct* pp_ptr = (postprocess_top_struct*)container;
-            fixed_reset_lpwwd_post(pp_ptr->pp_component.ifx_component_pt);
+            hmms_postprocess_top_struct* pp_ptr = (hmms_postprocess_top_struct*)container;
+            pp_ptr->pp_component.reset_flag = true;
+            fixed_reset_lpwwd_post(pp_ptr->pp_component.ifx_component_pt); /* this is optional since reset flag will trigger to call this */
+        }
+        else
+#endif
+        if (component_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
+        {
+            lpwwd_postprocess_top_struct* pp_ptr = (lpwwd_postprocess_top_struct*)container;
+            pp_ptr->pp_component.reset_flag = true;
         }
         else
 #endif
@@ -931,6 +1068,14 @@ int32_t ifx_pre_post_process_status(void* container, int32_t component_id)
 #ifdef ENABLE_IFX_LPWWD
     if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {/* HMMS post process is always enabled */
+#ifdef ENABLE_IFX_LPWWD_HMMS
+        status = true;
+#else
+        status = false;
+#endif
+    }
+    else if (component_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
+    {/* LPWWD post process is always enabled */
         status = true;
     }
     else
@@ -956,29 +1101,59 @@ int32_t ifx_post_process(IFX_PPINPUT_DATA_TYPE_T* in_probs, void* postprocess_co
 {
     (void)in_probs, (void)postprocess_container, (void)component_id, (void)detection;
 #ifdef ENABLE_IFX_LPWWD
-    postprocess_top_struct* dPt;
-    //ifx_scratch_mem_t* scratchPt;
-
     /* Sanity check of input arguments */
     if ((postprocess_container == NULL) || (in_probs == NULL))
     {
-        return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
+        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
 
-    dPt = (postprocess_top_struct*) postprocess_container;
-    if (dPt->pp_component.reset_flag)
-    {/* one time reset */
-        fixed_reset_lpwwd_post(dPt->pp_component.ifx_component_pt);
-        dPt->pp_component.reset_flag = false;
+    if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
+    {
+#ifdef ENABLE_IFX_LPWWD_HMMS
+        hmms_postprocess_top_struct* dPt;
+
+#ifdef PROFILER
+        ifx_cycle_profile_start(&(dPt->pp_component.profile));
+#endif
+        dPt = (hmms_postprocess_top_struct*) postprocess_container;
+        if (dPt->pp_component.reset_flag)
+        {/* one time reset */
+            fixed_reset_lpwwd_post(dPt->pp_component.ifx_component_pt);
+            dPt->pp_component.reset_flag = false;
+        }
+        *detection = fixed_lpwwd_post(dPt->pp_component.ifx_component_pt, in_probs);
+#ifdef PROFILER
+        ifx_cycle_profile_stop(&(dPt->pp_component.profile));
+#endif
+#else
+        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+#endif
     }
-    //scratchPt = &(dPt->scratch);
+    else if (component_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
+    {
+        lpwwd_postprocess_top_struct* dPt;
 #ifdef PROFILER
-    ifx_cycle_profile_start(&(dPt->pp_component.profile));
+        ifx_cycle_profile_start(&(dPt->pp_component.profile));
 #endif
-    *detection = fixed_lpwwd_post(dPt->pp_component.ifx_component_pt, in_probs);
+        dPt = (lpwwd_postprocess_top_struct*) postprocess_container;
+        if (dPt->pp_component.reset_flag)
+        {/* one time reset */
+            ifx_lpwwd_post_process_reset(postprocess_container);
+            dPt->pp_component.reset_flag = false;
+        }
+        int32_t status = ifx_lpwwd_post_process(postprocess_container, in_probs, detection);
 #ifdef PROFILER
-    ifx_cycle_profile_stop(&(dPt->pp_component.profile));
+        ifx_cycle_profile_stop(&(dPt->pp_component.profile));
 #endif
+        if (status != IFX_SP_ENH_SUCCESS)
+        {
+            return status;
+        }
+    }
+    else
+    {
+        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_FEATURE_NOT_SUPPORTED);
+    }
 #endif
     return IFX_SP_ENH_SUCCESS;
 }
@@ -995,13 +1170,17 @@ void removePrefixSpaces(char* str1)
  *          before call ifx_class_convertion_for_pp() function.
  *
  * \param[in]  id_string                : Pointer to string decribing the inference classification indetifications which must contain
- *                                        "WWDtoken0", "WWDtoken1", and "noise". Each ID should only occur once, and its position in the
+ *                                        "WWDtoken0" to "WWDtoken3", and "noise". Each ID should only occur once, and its position in the
  *                                        string corresponds to its inference classification position. Please notice that "garbage" is a
- *                                        optional ID since initilization process will treat other than above 3 IDs as garbage. Each ID shall
+ *                                        optional ID since initilization process will treat other than above IDs as garbage. Each ID shall
  *                                        be seperated by ",".
  *                                        Note the inference classification IDs order is decided by the NN model during NN model training.
- *                                        The number of classes is 6 with two key words model. For one KW model, the number of class is 4.
+ *                                        For example, "WWDtoken0,WWDtoken1,WWDtoken2,WWDtoken3,garbage,noise" is a valid id_string for 4 token WW model.
+ *                                        The number of classes is 6 with 4 token WW model. For 2 token KW model, the number of class is 4.
+ *                                        For 2 token 2 WW model, the number of class is 6, and 2 WW model only support 2 token per WW.
+ *                                        The last two are always garbage and noise.
  * \param[in]  size                     : Inference output classification size
+ * \param[in]  ww_tokens                : Number of tokens in wake word
  * \param[out] output_id_array          : Pointer to the output buffer containing inference classification indetification number.
  * \return                              : Return 0 when success, otherwise return error code
  *                                        INVALID_ARGUMENT if input or output argument is invalid
@@ -1010,15 +1189,22 @@ void removePrefixSpaces(char* str1)
  *                                        code is in 16bit MSB, and its IP component index if applicable will be at
  *                                        bit 8 to 15 in the combined 32bit return value.
 */
-int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, int size)
+#define PP_CLASS_WWDTOKEN0  (0)     /* Wake word token0 is the first of one keyword NN inference output */
+#define PP_CLASS_WWDTOKEN1  (1)     /* Wake word token1 is the second of one keyword NN inference output */
+#define PP_CLASS_WWDTOKEN2  (2)     /* Wake word token2 is the third of one keyword NN inference output */
+#define PP_CLASS_WWDTOKEN3  (3)     /* Wake word token3 is the fourth of one keyword NN inference output */
+int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, int size, int ww_tokens)
 {
-    if (id_string == NULL || output_id_array == NULL || size < NUM_PP_CLASS)
+    int class_num = ww_tokens + 2; // 2 for noise and garbage
+    if (id_string == NULL || output_id_array == NULL || size < class_num)
     {
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
 
-    uint16_t num_neg_token = 0, num_noise_token = 0, num_pos_token0 = 0, num_pos_token1 = 0;
+    uint16_t num_neg_token = 0, num_noise_token = 0, num_pos_token = 0;
     char output_id_string_cpy[MAX_CLASS_ID_LENGTH]; // for making copy of output_id_string since strtok will modify it
+    int garbage_pos = ww_tokens; // garbage position in the output_id_array (right after token ends)
+    int noise_pos = ww_tokens+1; // noise position in the output_id_array (right after garbage ends)
     strcpy(output_id_string_cpy, id_string);
     char* token = strtok(output_id_string_cpy, ",");
     int output_count = 0;
@@ -1031,23 +1217,33 @@ int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, i
         removePrefixSpaces(token);
         if (strncmp(token, "WWDtoken0", 9) == 0)
         {
-            num_pos_token0++;
+            num_pos_token++;
             output_id_array[output_count++] = PP_CLASS_WWDTOKEN0;
         }
         else if (strncmp(token, "WWDtoken1", 9) == 0)
         {
-            num_pos_token1++;
+            num_pos_token++;
             output_id_array[output_count++] = PP_CLASS_WWDTOKEN1;
+        }
+        else if (strncmp(token, "WWDtoken2", 9) == 0)
+        {
+            num_pos_token++;
+            output_id_array[output_count++] = PP_CLASS_WWDTOKEN2;
+        }
+        else if (strncmp(token, "WWDtoken3", 9) == 0)
+        {
+            num_pos_token++;
+            output_id_array[output_count++] = PP_CLASS_WWDTOKEN3;
         }
         else if (strncmp(token, "noise", 5) == 0)
         {
             num_noise_token++;
-            output_id_array[output_count++] = PP_CLASS_NOISE;
+            output_id_array[output_count++] = noise_pos; // noise position in the output_id_array
         }
         else
         {// negative IDs will be combined as "garbage".
             num_neg_token++;
-            output_id_array[output_count++] = PP_CLASS_GARBAGE;
+            output_id_array[output_count++] = garbage_pos; // garbage position in the output_id_array
         }
         token = strtok(NULL, ",");
     }
@@ -1055,7 +1251,7 @@ int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, i
     {
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_NUMBER_PARMS);
     }
-    if (size - num_neg_token != NUM_PP_CLASS - 1 || num_noise_token != 1 || num_pos_token0 != 1 || num_pos_token1 != 1)
+    if (size - num_neg_token != class_num - 1 || num_noise_token != 1 || num_pos_token < 2 || num_pos_token > 4)
     {
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_PARAM_RANGE);
     }
@@ -1067,9 +1263,10 @@ int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, i
  *          classification before using post process to declare WWD.
  *
  * \param[in]  input_score              : Pointer to two keyword inference output buffer
- * \param[in]  data_type                : Infineon inference output data type
+ * \param[in]  data_type                : Infineon inference output (input_score) data type, and it is also output_score data type.
  * \param[in]  id_array                 : Pointer to the buffer containing inference classification indetification number
  * \param[in]  size                     : Inference output classification size
+ * \param[in]  ww_tokens                : Number of tokens in wake word
  * \param[out] output_score             : Corresponding one key word inference output buffer pointer.
  * \return                              : Return 0 when success, otherwise return error code
  *                                        INVALID_ARGUMENT if input or output argument is invalid
@@ -1078,9 +1275,8 @@ int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, i
  *                                        code is in 16bit MSB, and its IP component index if applicable will be at
  *                                        bit 8 to 15 in the combined 32bit return value.
 */
-int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* output_score, int* id_array, int size)
+int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* output_score, int* id_array, int size, int ww_tokens)
 {
-    int32_t status = IFX_SP_ENH_SUCCESS;
     if (input_score  == NULL || output_score == NULL || id_array == NULL )
     {
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
@@ -1090,6 +1286,8 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_PARAM);
     }
 
+    int32_t status = IFX_SP_ENH_SUCCESS;
+    int garbage_pos = ww_tokens; // garbage position in the output_id_array (right after token ends)
     {
         int total_neg_score_int = 0;
         int8_t *int8_ptr, *out_int8_ptr;
@@ -1104,7 +1302,7 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
             out_f32_ptr = (float*)output_score;
             for (int i = 0; i < size; i++)
             {
-                if (id_array[i] == PP_CLASS_GARBAGE)
+                if (id_array[i] == garbage_pos)
                 {// add all negative scores
                     total_neg_score_f32 += f32_ptr[i];
                 }
@@ -1113,7 +1311,7 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
                     out_f32_ptr[id_array[i]] = f32_ptr[i];
                 }
             }
-            out_f32_ptr[PP_CLASS_GARBAGE] = total_neg_score_f32;
+            out_f32_ptr[garbage_pos] = total_neg_score_f32;
         }
         else if (data_type == IFX_ML_DATA_INT16)
         {
@@ -1121,7 +1319,7 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
             out_int16_ptr = (int16_t*)output_score;
             for (int i = 0; i < size; i++)
             {
-                if (id_array[i] == PP_CLASS_GARBAGE)
+                if (id_array[i] == garbage_pos)
                 {// add all negative scores
                     total_neg_score_int += int16_ptr[i];
                 }
@@ -1130,7 +1328,7 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
                     out_int16_ptr[id_array[i]] = int16_ptr[i];
                 }
             }
-            out_int16_ptr[PP_CLASS_GARBAGE] = total_neg_score_int;
+            out_int16_ptr[garbage_pos] = total_neg_score_int;
         }
         else
         {
@@ -1138,7 +1336,7 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
             out_int8_ptr = (int8_t*)output_score;
             for (int i = 0; i < size; i++)
             {
-                if (id_array[i] == PP_CLASS_GARBAGE)
+                if (id_array[i] == garbage_pos)
                 {// add all negative scores
                     total_neg_score_int += int8_ptr[i];
                 }
@@ -1147,7 +1345,7 @@ int32_t ifx_class_convertion_for_pp(void* input_score, int data_type, void* outp
                     out_int8_ptr[id_array[i]] = int8_ptr[i];
                 }
             }
-            out_int8_ptr[PP_CLASS_GARBAGE] = total_neg_score_int;
+            out_int8_ptr[garbage_pos] = total_neg_score_int;
         }
     }
     return status;

@@ -2,6 +2,11 @@
 
 ## Change log
 
+### v3.0.0
+* Enhanced audio processing algorithms
+* Improved performance and stability
+* Bug fixes and optimization updates
+
 ### v2.0.0
 * Utility documentation and README refinements
 * Improved ASRC, AGC, and LPF integration and examples

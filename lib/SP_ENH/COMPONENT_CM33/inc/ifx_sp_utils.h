@@ -92,7 +92,7 @@ extern "C" {
 int32_t speech_utils_sod_reset(int32_t* sod_prms_buffer, void* sod_container);
 
 /**
- * \brief : speech_utils_post_process_get_threshold() is the API function to get detection threshold from post process.
+ * \brief : speech_utils_hmms_post_process_get_threshold() is the API function to get detection threshold from post process.
  *
  *
  * \param[out] threshold                : Post process detection threshold
@@ -104,10 +104,10 @@ int32_t speech_utils_sod_reset(int32_t* sod_prms_buffer, void* sod_container);
  *                                        code is in 16bit MSB, and its IP component index if applicable will be at
  *                                        bit 8 to 15 in the combined 32bit return value.
 */
-int32_t speech_utils_post_process_get_threshold(void* postprocess_container, float* threshold);
+int32_t speech_utils_hmms_post_process_get_threshold(void* postprocess_container, float* threshold);
 
 /**
- * \brief : speech_utils_post_process_get_score() is the API function to get detection score from post process.
+ * \brief : speech_utils_hmms_post_process_get_score() is the API function to get detection score from post process.
  *
  *
  * \param[out] score                    : Post process detection score
@@ -119,7 +119,28 @@ int32_t speech_utils_post_process_get_threshold(void* postprocess_container, flo
  *                                        code is in 16bit MSB, and its IP component index if applicable will be at
  *                                        bit 8 to 15 in the combined 32bit return value.
 */
-int32_t speech_utils_post_process_get_score(void* postprocess_container, float* score);
+int32_t speech_utils_hmms_post_process_get_score(void* postprocess_container, float* score);
+
+/**
+ * \brief : speech_utils_lpwwd_post_process_get_results() is the API function to get detection results from lpwwd post process.
+ *
+ *
+ * \param[out] total_tokens             : Total number of tokens in wake word
+ * \param[out] token_count              : LPWWD post process detection each token counter value
+ * \param[out] gap_count                : LPWWD post process detection between each token gap value
+ * \param[out] timeout_count            : LPWWD post process timeout counter value
+ * \param[out] garbage_count            : LPWWD post process garbage counter value
+ * \param[out] noise_count              : LPWWD post process noise counter value
+ * \param[out] state                    : LPWWD post process state value
+ * \param[in]  postprocess_container    : Pointer to lpwwd post process container that contains state memory and its params
+ * \return                              : Return 0 when success, otherwise return error code
+ *                                        IFX_SP_ENH_ERR_INVALID_ARGUMENT if input or output argument is invalid
+ *                                        or error code from specific ifx audio & voice enhancement proces module.
+ *                                        Please note error code is 8bit LSB, line number where the error happened in
+ *                                        code is in 16bit MSB, and its IP component index if applicable will be at
+ *                                        bit 8 to 15 in the combined 32bit return value.
+*/uint32_t speech_utils_lpwwd_post_process_get_results(void *postprocess_container, uint16_t *total_tokens, uint16_t *token_count,
+         uint16_t *gap_count, uint16_t *timeout_count, uint16_t *garbage_count, uint16_t *noise_count, int16_t *state);
 
 #if defined(__cplusplus)
 }
