@@ -2,6 +2,9 @@
 
 ## Change log
 
+### v3.1.0
+* Optional Voice Assistance max cmd (250) support added
+
 ### v3.0.0
 * Enhanced audio processing algorithms
 * Improved performance and stability
@@ -22,3 +25,7 @@
 ### v1.0.0
 * Release with core audio algorithm implementation
 * Support with the core audio algorithms implementation (NS, BF, AEC and DR etc).
+
+```sh
+
+```

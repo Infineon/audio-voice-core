@@ -127,7 +127,7 @@ int32_t speech_utils_hmms_post_process_get_score(void* postprocess_container, fl
  *
  * \param[out] total_tokens             : Total number of tokens in wake word
  * \param[out] token_count              : LPWWD post process detection each token counter value
- * \param[out] gap_count                : LPWWD post process detection between each token gap value
+ * \param[out] gap_count                : LPWWD post process before detected 1st token gap value
  * \param[out] timeout_count            : LPWWD post process timeout counter value
  * \param[out] garbage_count            : LPWWD post process garbage counter value
  * \param[out] noise_count              : LPWWD post process noise counter value

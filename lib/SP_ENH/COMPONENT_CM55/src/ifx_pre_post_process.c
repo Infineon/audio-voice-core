@@ -61,6 +61,11 @@
 /******************************************************************************
 * Global variables
 *****************************************************************************/
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL) //This compilation switch needs to be set if HMMS post process is used and target platform has no file IO support to read model data files.
+extern int16_t ppkwmodel[];
+extern int16_t ppgmodel[];
+extern int16_t ppnmodel[];
+#endif
 
 /* IP component common fisrt five configuration parameters:
  * configurator version,
@@ -217,7 +222,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
         }
         if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_MFCC)
         {
-            if (sz != 1)
+            if (sz < 1)
             {
                 return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
             }
@@ -252,7 +257,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
 #if defined(ENABLE_IFX_LPWWD)
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
         if (sz != 4)
         {/* Only four parameters */
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_NUMBER_PARMS);
@@ -262,7 +267,7 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
         ip_infoPt->output_size = 0;
         ip_infoPt->fft_block_size = 0;
 #else
-        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define HMMS_CONFIG_MODEL or ENABLE_IFX_LPWWD_HMMS */
 #endif
     }
     else if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
@@ -281,9 +286,9 @@ int32_t ifx_pre_post_process_parse(int32_t* ip_prms_config, ifx_stc_pre_post_pro
         uint16_t garbage_count_threshold = *int_idx++; /* garbage count threshold */
         uint16_t garbage_count_2nd_threshold = *int_idx++;   /* garbage count 2nd threshold */
         uint16_t total_timeout_threshold = *int_idx++; /* total timeout threshold */
-        if (total_timeout_threshold == 0 || total_timeout_threshold > INT16_MAX ||
-            garbage_count_threshold > INT8_MAX ||
-            garbage_count_2nd_threshold > INT8_MAX)
+        if (total_timeout_threshold < MIN_LPWWDPP_TIMEOUT_THRESHOLD || total_timeout_threshold > MAX_LPWWDPP_TIMEOUT_THRESHOLD ||
+            garbage_count_threshold > UINT16_MAX ||
+            garbage_count_2nd_threshold > UINT16_MAX)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -372,14 +377,14 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     {
         return IFX_SP_ENH_ERROR(IFX_SP_ENH_COMPONENT_ID_INVALID, IFX_SP_ENH_ERR_INVALID_ARGUMENT);
     }
-
+   
     /* read first five parameters which are always same definition */
     sz = *int_idx++;                /* Configurator version, ignore for now */
     sampling_rate = *int_idx++;     /* sampling rate */
     frame_size    = *int_idx++;     /* frame size */
     ip_id = *int_idx++;             /* IP component ID */
     sz = *int_idx++;                /* number of following parameters */
-
+    
     /* Sanity check of input arguments */
     if (ifx_container == NULL || ip_infoPt == NULL)
     {
@@ -495,7 +500,7 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
         int32_t ret;
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
         hmms_postprocess_top_struct* pp_ptr;
         int16_t detection_th, set_flag;
 
@@ -520,21 +525,14 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
         pp_ptr->detection_threshold = *int_idx++;
         set_flag = (int16_t)(pp_ptr->detection_threshold & 0xFFFF); /* lower 16bit is set flag */
         detection_th = (int16_t)(pp_ptr->detection_threshold >> 16);/* upper 16bit is the detection threshold */
-#if HMMS_CONFIG_MODEL //This compilation switch need to be set if target platform has no file IO support to read model data files.
-        ret = fixed_init_lpwwd_post(pp_ptr->pp_component.ifx_component_pt, pp_ptr->lookback_buffer_length, pp_ptr->stacked_frame_delay, detection_th, set_flag);
-#else
-        extern int16_t* ppkwmodel;
-        extern int16_t* ppgmodel;
-        extern int16_t* ppnmodel;
         ret = fixed_init_lpwwd_post(pp_ptr->pp_component.ifx_component_pt, ppkwmodel, ppgmodel, ppnmodel, NULL, pp_ptr->lookback_buffer_length, pp_ptr->stacked_frame_delay, detection_th, set_flag);
-#endif
         if (ret != 0)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
-       *ifx_container = pp_ptr;
+        *ifx_container = pp_ptr;
 #else
-        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define HMMS_CONFIG_MODEL or ENABLE_IFX_LPWWD_HMMS */
 #endif
         return ret;
     }
@@ -555,9 +553,9 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
         uint16_t garbage_count_threshold = *int_idx++; /* garbage count threshold */
         uint16_t garbage_count_2nd_threshold = *int_idx++;   /* garbage count 2nd threshold */
         uint16_t timeout_threshold = *int_idx++; /* total timeout threshold */
-        if (timeout_threshold == 0 || timeout_threshold > INT16_MAX ||
-            garbage_count_threshold > INT16_MAX ||
-            garbage_count_2nd_threshold > INT16_MAX)
+        if (timeout_threshold < MIN_LPWWDPP_TIMEOUT_THRESHOLD || timeout_threshold > MAX_LPWWDPP_TIMEOUT_THRESHOLD ||
+            garbage_count_threshold > UINT16_MAX ||
+            garbage_count_2nd_threshold > UINT16_MAX)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
@@ -618,7 +616,7 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
     {
         if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_MFCC)
         {/* mfcc option */
-            if (sz != 3)
+            if (sz != 5)
             {
                 return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
             }
@@ -628,7 +626,7 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
         }
         else if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_LOG_MEL)
         {/* log-mel option */
-            if (sz < 2 || sz > 3)
+            if (sz != 4)
             {
                 return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
             }
@@ -636,6 +634,8 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
             num_feature = *int_idx++;
             num_coeffs = 0; /* force set num_mfcc_coeffs to zero for log_ml case */
         }
+        uint16_t min_freq = *int_idx++;
+        uint16_t max_freq = *int_idx++;
 
         spectrogram_top_struct* dPt;
         if (frame_shift > frame_size)
@@ -673,6 +673,8 @@ int32_t ifx_pre_post_process_init(int32_t * ip_prms_config, void **ifx_container
         dPt->mel_frame_shift = frame_shift;
         dPt->mel_num_fbank_bins = num_feature;
         dPt->mel_num_mfcc_coeffs = num_coeffs;
+        dPt->freq_min = min_freq;
+        dPt->freq_max = max_freq;
 
         /* Initialize internal Spectrogram Transfomation structure */
         mel_features_fix_init(dPt, sz);
@@ -948,7 +950,7 @@ int32_t ifx_pre_post_process_mode_control(void* container, int32_t component_id,
         else
 #endif
 #ifdef ENABLE_IFX_LPWWD
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
         if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
         {
             hmms_postprocess_top_struct* pp_ptr = (hmms_postprocess_top_struct*)container;
@@ -961,6 +963,7 @@ int32_t ifx_pre_post_process_mode_control(void* container, int32_t component_id,
         {
             lpwwd_postprocess_top_struct* pp_ptr = (lpwwd_postprocess_top_struct*)container;
             pp_ptr->pp_component.reset_flag = true;
+            ifx_lpwwd_post_process_reset(container);
         }
         else
 #endif
@@ -1068,7 +1071,7 @@ int32_t ifx_pre_post_process_status(void* container, int32_t component_id)
 #ifdef ENABLE_IFX_LPWWD
     if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {/* HMMS post process is always enabled */
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
         status = true;
 #else
         status = false;
@@ -1109,7 +1112,7 @@ int32_t ifx_post_process(IFX_PPINPUT_DATA_TYPE_T* in_probs, void* postprocess_co
 
     if (component_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
         hmms_postprocess_top_struct* dPt;
 
 #ifdef PROFILER
@@ -1126,7 +1129,7 @@ int32_t ifx_post_process(IFX_PPINPUT_DATA_TYPE_T* in_probs, void* postprocess_co
         ifx_cycle_profile_stop(&(dPt->pp_component.profile));
 #endif
 #else
-        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+        return IFX_SP_ENH_ERROR(component_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define HMMS_CONFIG_MODEL or ENABLE_IFX_LPWWD_HMMS */
 #endif
     }
     else if (component_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
@@ -1251,7 +1254,7 @@ int32_t ifx_class_convertion_init(const char* id_string, int* output_id_array, i
     {
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_NUMBER_PARMS);
     }
-    if (size - num_neg_token != class_num - 1 || num_noise_token != 1 || num_pos_token < 2 || num_pos_token > 4)
+    if (size - num_neg_token != class_num - 1 || num_noise_token != 1 || num_pos_token < 1 || num_pos_token > 4)
     {
         return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_PARAM_RANGE);
     }

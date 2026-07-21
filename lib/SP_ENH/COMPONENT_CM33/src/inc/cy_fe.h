@@ -82,6 +82,8 @@ typedef struct
     int number_of_filter_banks;
     int number_of_dct_coefficients;
     int audio_frame_size; // incoming audio frame size
+    float mel_low_freq;
+    float mel_high_freq;
 } cy_fe_config_params_t;
 
 cy_rslt_t cy_fe_init(cy_fe_config_params_t* config_params, cy_fe_handle **handle);

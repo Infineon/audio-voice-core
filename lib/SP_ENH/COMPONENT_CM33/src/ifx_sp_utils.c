@@ -163,7 +163,7 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
 #ifdef ENABLE_IFX_LPWWD
     if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_HMMS)
     {
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
         if (sampling_rate != 16000)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
@@ -172,7 +172,7 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
         persistent_sz = ALIGN_WORD(sizeof(hmms_postprocess_top_struct)) + fixed_lpwwd_post_hmms_calculate_persistent_mem_size();
         scratch_sz = ALIGN_WORD(1);     /* Avoid zero */
 #else
-        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+        return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define HMMS_CONFIG_MODEL or ENABLE_IFX_LPWWD_HMMS */
 #endif
     }
     else if (ip_id == IFX_POST_PROCESS_IP_COMPONENT_LPWWD)
@@ -191,20 +191,30 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
     if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_MFCC || ip_id == IFX_PRE_PROCESS_IP_COMPONENT_LOG_MEL)
     {
         int32_t num_mel_features, num_mfcc_coeffs, block_size;
+        uint16_t freq_min, freq_max;
         if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_MFCC)
         {
-            if (sz != 3)
+            if (sz != 5)
             {
                 return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
             }
         }
-        else if (sz < 2)
+        else if (sz != 4)
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
         int_idx++;  /* skip frame_shift */
         num_mel_features = *int_idx++;
-        num_mfcc_coeffs = *int_idx++;
+        if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_LOG_MEL)
+        {/* force set num_mfcc_coeffs to zero for log_ml case */
+            num_mfcc_coeffs = 0;
+        }
+        else
+        {
+            num_mfcc_coeffs = *int_idx++;
+        }
+        freq_min = *int_idx++;
+        freq_max = *int_idx++;
         block_size = (int32_t)pow(2, ceil((log(frame_size) / log(2)))); // Round-up to nearest power of 2.
         if ((sampling_rate != 16000) || (num_mel_features < MIN_FBANK_SIZE) || (num_mel_features > MAX_FBANK_SIZE) || (block_size < 256) || (block_size > 1024))
         {
@@ -214,11 +224,11 @@ int32_t speech_utils_getMem(int32_t* ip_prms_buffer, int32_t ip_id, mem_info_t* 
         {
             return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
-        if (ip_id == IFX_PRE_PROCESS_IP_COMPONENT_LOG_MEL)
-        {/* force set num_mfcc_coeffs to zero for log_ml case */
-            num_mfcc_coeffs = 0;
+        if (freq_min >= freq_max || freq_max > sampling_rate / 2)
+        {
+            return IFX_SP_ENH_ERROR(ip_id, IFX_SP_ENH_ERR_PARAM);
         }
-        persistent_sz = spectrogram_calculate_persistent_mem_size(sampling_rate, block_size, num_mel_features, num_mfcc_coeffs);
+        persistent_sz = spectrogram_calculate_persistent_mem_size(sampling_rate, block_size, num_mel_features, num_mfcc_coeffs, freq_min, freq_max);
         persistent_sz += ALIGN_WORD(sizeof(spectrogram_top_struct)) + spectrogram_calculate_spctrg_component_size();
         scratch_sz = spectrogram_calculate_scratch_mem_size(block_size, num_mel_features);
     }
@@ -429,7 +439,7 @@ int32_t ifx_sod_process(IFX_SP_DATA_TYPE_T *in, void *sod_container, bool *vad)
 #ifdef ENABLE_IFX_LPWWD
 int32_t speech_utils_hmms_post_process_get_threshold(void* postprocess_container, float* threshold)
 {
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
     hmms_postprocess_top_struct* dPt;
 
     /* Sanity check of input arguments */
@@ -444,13 +454,13 @@ int32_t speech_utils_hmms_post_process_get_threshold(void* postprocess_container
     return IFX_SP_ENH_SUCCESS;
 #else
     *threshold = 0.0f;
-    return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+    return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define HMMS_CONFIG_MODEL or ENABLE_IFX_LPWWD_HMMS */
 #endif
 }
 
 int32_t speech_utils_hmms_post_process_get_score(void* postprocess_container, float* score)
 {
-#ifdef ENABLE_IFX_LPWWD_HMMS
+#if defined(ENABLE_IFX_LPWWD_HMMS) || defined(HMMS_CONFIG_MODEL)
     hmms_postprocess_top_struct* dPt;
 
     /* Sanity check of input arguments */
@@ -465,7 +475,7 @@ int32_t speech_utils_hmms_post_process_get_score(void* postprocess_container, fl
     return IFX_SP_ENH_SUCCESS;
 #else
     *score = 0.0f;
-    return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define ENABLE_IFX_LPWWD_HMMS */
+    return IFX_SP_ENH_ERROR(IFX_POST_PROCESS_IP_COMPONENT_HMMS, IFX_SP_ENH_ERR_INVALID_COMPONENT_ID); /* Please define HMMS_CONFIG_MODEL or ENABLE_IFX_LPWWD_HMMS */
 #endif
 }
 #endif

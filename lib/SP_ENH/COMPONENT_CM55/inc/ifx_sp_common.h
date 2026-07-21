@@ -75,11 +75,11 @@ extern "C" {
 #define XIAODU_XIAODU_F32_NN        18
 #define XIAODU_XIAODU_INT8_NN       19
 /**
- * User can define ACTIVE_KW elsewhere (may be in makefile) and also enable
+ * User can define ACTIVE_KW elsewhere (may be in makefile) and also enable 
  * HMMS_CONFIG_MODEL to choose model using the file hmms_model_config.c
- *
+ * 
  * if the variable HMMS_CONFIG_MODEL is defined and ACTIVE_KW is not defined
- * then
+ * then 
  */
 #ifndef ACTIVE_KW
 #define ACTIVE_KW   OKIFX_UNIT_TEST

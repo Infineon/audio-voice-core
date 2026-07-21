@@ -20,6 +20,22 @@ COMPONENTS+=AVC_FULL   # Full capabilities for production use
 
 Note: AVC_DEMO provides limited functionality for evaluation purposes. For production use with full AVC capabilities, use AVC_FULL. Contact Infineon support for licensing information and access to the full version.
 
+## VA Max Command Component
+
+The VA library supports up to 100 voice commands by default. For applications requiring more commands (up to 250), the `COMPONENT_MAXCMD` variant is available for CM55 only.
+
+To use the extended command set, add the following component and ignore the default 100-command library in the application's makefile:
+
+```makefile
+COMPONENTS+=MAXCMD
+CY_IGNORE+= $(SEARCH_audio-sw-codecs)/lib/SP_ENH/COMPONENT_CM55/COMPONENT_AVC_DEMO/COMPONENT_HARDFP/TOOLCHAIN_ARM/ifx_va.ar
+
+```
+
+Note: Adjust the `CY_IGNORE` path to match your configuration (AVC_DEMO/AVC_FULL, SOFTFP/HARDFP, and toolchain).
+
+This selects the VA library built with `MAXCMDS=250`, located under the `COMPONENT_MAXCMD/` subfolder of the toolchain directory. The `CY_IGNORE` entry prevents linking the default 100-command `ifx_va.ar` library, avoiding symbol conflicts. Note that this variant requires more memory due to the larger command set.
+
 ## Additional information
 * [Audio voice core RELEASE.md](./RELEASE.md)
 * [Audio voice core library version](./version.txt)

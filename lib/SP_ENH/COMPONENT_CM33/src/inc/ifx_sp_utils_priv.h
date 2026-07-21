@@ -60,19 +60,24 @@ extern "C" {
 *******************************************************************************/
 #define IFX_SP_LPWWD_VERSION_MAJOR            2
 #define IFX_SP_LPWWD_VERSION_MINOR            8
-#define IFX_SP_LPWWD_VERSION_PATCH            0
-#define IFX_SP_LPWWD_VERSION                  280
+#define IFX_SP_LPWWD_VERSION_PATCH            1
+#define IFX_SP_LPWWD_VERSION                  281
 
 /*******************************************************************************
 * Speech utilities data type & defines
 *******************************************************************************/
-#define MAX_FBANK_SIZE  (40)            /* Maximum # of mel_banks; should be between (10-40), typical number: 40 */
+#define MEL_LOW_FREQ (20)               /* Default minimum mel frequecy */
+#define MEL_HIGH_FREQ (7200)            /* Default maximum mel frequecy */
+
+#define MAX_FBANK_SIZE  (80)            /* Maximum # of mel_banks; should be between (10-40), typical number: 40 */
 #define MIN_FBANK_SIZE  (2)             /* Minimum # of mel_banks */
 
 #define AGC_PARMS_SIZE  (7)             /* Number of AGC parameters */
 
 #define MAX_WW_SERIES   (2)             /* Maximum number of WWD series in low power WWD */
 #define MAX_WW_TOKENS   (4)             /* Maximum number of WWD tokens in low power WWD */
+#define MIN_LPWWDPP_TIMEOUT_THRESHOLD (20) /* Minimum total timeout threshold for low power WWD */
+#define MAX_LPWWDPP_TIMEOUT_THRESHOLD (1000) /* Maximum total timeout threshold for low power WWD */
 /*******************************************************************************
 * Structures and enumerations
 *******************************************************************************/
@@ -109,6 +114,8 @@ typedef struct spectrogram_top_struct_t
     uint16_t mel_block_size;                 /**<: FFT block size */
     uint8_t mel_num_fbank_bins;              /**<: # of mel_banks (10-40), typical number: 40 */
     uint8_t mel_num_mfcc_coeffs;             /**<: # of mfcc coefs, for log_mel it equals to zero */
+    uint16_t freq_min;                       /**<: Minimum frequency for mel filter bank in Hz */
+    uint16_t freq_max;                       /**<: Maximum frequency for mel filter bank in Hz */
     /*@}*/
 } spectrogram_top_struct;
 
@@ -338,8 +345,8 @@ int16_t fixed_lpwwd_post_get_threshold(void* postprocPt);
 void fixed_reset_lpwwd_post(void* postprocPt);
 
 /***************************************************************************************
-* Function: fixed_init_lpwwd_post(struct PP_struct *ppmem, int method, int16_t *ppkwmodel,
-*                           int16_t *ppgmodel)
+* Function: fixed_init_lpwwd_post(struct PP_struct *ppmem, int16_t *ppkwmodel, int16_t *ppgmodel, int16_t *ppnmodel, int16_t *pprejectmodel,
+*                                 int16_t lookbackbuffertime, int16_t nnstackedframedelay, int16_t PPth, int16_t SetPPthFLAG)
 *
 * Purpose:  Read the supplied Post Processing model(s) and use to initialize the memory
 *           containing the hmm models.  Call reset_lpwwd_post() to set the dynamic
@@ -378,11 +385,7 @@ void fixed_reset_lpwwd_post(void* postprocPt);
 *
 *
 ****************************************************************************************/
-#if HMMS_CONFIG_MODEL
-int fixed_init_lpwwd_post(void* postprocPt, int16_t lookbackbuffertime, int16_t nnstackedframedelay, int16_t PPth /* Q12 */, int16_t SetPPthFLAG);
-#else
 int fixed_init_lpwwd_post(void* postprocPt, int16_t* ppkwmodel, int16_t* ppgmodel, int16_t* ppnmodel, int16_t* pprejectmodel, int16_t lookbackbuffertime, int16_t nnstackedframedelay, int16_t PPth /* Q12 */, int16_t SetPPthFLAG);
-#endif
 
 /***************************************************************************************
 * Function: fixed_lpwwd_post(void *postprocPt, int16_t *feature)
@@ -442,7 +445,7 @@ void mel_features_fix_init(void* dPt, int persistent_count);
 bool mel_features_fix_compute(spectrogram_top_struct* topdPt, const IFX_SP_DATA_TYPE_T* audio_data, IFX_FE_DATA_TYPE_T* features, int32_t* out_q);
 
 /***********************************************************************
-* Function: spectrogram_calculate_persistent_mem_size(uint16_t mel_sample_rate, uint16_t mel_block_size, uint16_t mel_num_fbank_bins, uint16_t mel_num_mfcc_coeffs)
+* Function: spectrogram_calculate_persistent_mem_size(uint16_t mel_sample_rate, uint16_t mel_block_size, uint16_t mel_num_fbank_bins, uint16_t mel_num_mfcc_coeffs, uint16_t freq_min, uint16_t freq_max)
 *
 * Purpose:  This function calculate persistent memory size needed for
 *           fixed-point feature extraction
@@ -451,14 +454,16 @@ bool mel_features_fix_compute(spectrogram_top_struct* topdPt, const IFX_SP_DATA_
 * Input:   mel_sample_rate     - is the sampling rate
 *          mel_block_size      - is FFT block size
 *          mel_num_fbank_bins  - is the number of mel filter bank bins
-*          mel_num_mfcc_coeffs - is the number of MFCC coefficeints, set to 0 for LOG MEL.
+*          mel_num_mfcc_coeffs - is the number of MFCC coefficeints, set to 0 for LOG MEL
+*          freq_min           - is the minimum frequency for mel filter bank in Hz
+*          freq_max           - is the maximum frequency for mel filter bank in Hz
 *
 * Outputs: NA
 *
 * Return: persistent memory size
 *
 ***********************************************************************/
-int spectrogram_calculate_persistent_mem_size(uint16_t mel_sample_rate, uint16_t mel_block_size, uint16_t mel_num_fbank_bins, uint16_t mel_num_mfcc_coeffs);
+int spectrogram_calculate_persistent_mem_size(uint16_t mel_sample_rate, uint16_t mel_block_size, uint16_t mel_num_fbank_bins, uint16_t mel_num_mfcc_coeffs, uint16_t freq_min, uint16_t freq_max);
 
 /***********************************************************************
 * Function: spectrogram_calculate_scratch_mem_size(uint16_t mel_block_size, uint16_t mel_num_fbank_bins)
